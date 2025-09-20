@@ -1,0 +1,1191 @@
+openapi: 3.0.0
+info:
+  title: API de Gestión de Usuarios
+  version: 1.0.0
+  description: API RESTful para la gestión de usuarios con roles, permisos y autenticación
+  contact:
+    name: Soporte API
+    email: soporte@empresa.com
+
+servers:
+  - url: http://localhost:5000/api
+    description: Servidor de desarrollo
+
+tags:
+  - name: Autenticación
+    description: Endpoints de autenticación y autorización
+  - name: Usuarios
+    description: Operaciones relacionadas con usuarios
+  - name: Sistema
+    description: Endpoints del sistema
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Health check del sistema
+      description: Verifica que la API esté funcionando correctamente
+      security: []
+      responses:
+        '200':
+          description: API funcionando correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+                  message:
+                    type: string
+                    example: API funcionando correctamente
+
+  # Endpoints de Autenticación
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registrar nuevo usuario
+      description: Registra un nuevo usuario en el sistema
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Error de validación o credenciales inválidas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    enum:
+                      - Credenciales inválidas
+                      - Error de validación
+                      - JSON malformado
+                  error:
+                    type: string
+                    enum:
+                      - Email o contraseña incorrectos
+                      - El email es obligatorio y debe ser válido
+                      - La contraseña es obligatoria
+                      - Verifica la sintaxis del JSON enviado
+                      - Email y password son campos requeridos
+        '409':
+          description: Email ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión
+      description: Autentica un usuario y devuelve un token JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  require2fa:
+                    type: boolean
+                    example: true
+                    description: Indica que se requiere verificación 2FA
+                  userId:
+                    type: integer
+                    example: 14
+                    description: ID del usuario para usar en verificación OTP
+                  message:
+                    type: string
+                    example: Código OTP enviado a tu email
+        '422':
+          description: Error de validación - Campos requeridos faltantes o malformados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: JSON malformado
+                  error:
+                    type: string
+                    example: Verifica la sintaxis del JSON enviado
+                  details:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - userId es obligatorio y no puede estar vacío
+                      - otp es obligatorio y no puede estar vacío
+                      - userId debe ser un número entero positivo
+                      - otp debe ser exactamente 6 dígitos numéricos
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/2fa/verify:
+    post:
+      tags: [Autenticación]
+      summary: Verificar código OTP
+      description: |
+        Verifica el código de autenticación de dos factores.
+        
+        **IMPORTANTE:** Ambos campos son obligatorios y no pueden estar vacíos:
+        - `userId`: Debe ser el ID numérico obtenido del endpoint login
+        - `otp`: Debe ser exactamente 6 dígitos numéricos
+        
+        **Tipos de error específicos:**
+        - **400**: Error de validación (formato incorrecto, campos vacíos)
+        - **401**: Token expirado (pasaron más de 5 minutos)
+        - **404**: Token incorrecto (código no coincide)
+        
+        **Formato JSON correcto:**
+        ```json
+        {
+          "userId": 14,
+          "otp": "181669"
+        }
+        ```
+        
+        **Errores comunes:**
+        - ❌ `"userId": ""` (vacío) → 400
+        - ❌ `"userId": null` (null) → 400
+        - ❌ `"userId": "14"` (string en lugar de number) → 400
+        - ❌ `"otp": ""` (vacío) → 400
+        - ❌ `"otp": 181669` (number en lugar de string) → 400
+        - ❌ `"otp": "18166"` (menos de 6 dígitos) → 400
+        - ❌ `"otp": "18166a"` (contiene letras) → 400
+        - ✅ Formato correcto pero expirado → 401
+        - ✅ Formato correcto pero código incorrecto → 404
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerifyInput'
+      responses:
+        '200':
+          description: OTP verificado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Código OTP inválido o expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    enum:
+                      - Código OTP incorrecto
+                      - Código OTP vencido
+                      - Error de validación
+                      - JSON malformado
+                  error:
+                    type: string
+                    enum:
+                      - El código OTP ingresado no es válido
+                      - El código OTP ha expirado. Solicite uno nuevo
+                      - El userId es obligatorio y debe ser un número entero positivo
+                      - El OTP es obligatorio y debe ser exactamente 6 dígitos numéricos
+                      - Verifica la sintaxis del JSON enviado
+        '401':
+          description: Token OTP expirado específicamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token expirado
+                  error:
+                    type: string
+                    example: El código OTP ha expirado. El tiempo límite es de 5 minutos
+                  timeExpired:
+                    type: boolean
+                    example: true
+                  action:
+                    type: string
+                    example: Solicite un nuevo código OTP
+        '404':
+          description: Token OTP incorrecto específicamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token incorrecto
+                  error:
+                    type: string
+                    example: El código OTP ingresado no coincide con el generado
+                  invalidToken:
+                    type: boolean
+                    example: true
+                  action:
+                    type: string
+                    example: Verifique el código e intente nuevamente
+        '401':
+          description: No autorizado - Token JWT inválido o expirado
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: false
+                      message:
+                        type: string
+                        example: Token expirado
+                      error:
+                        type: string
+                        example: El token JWT ha expirado. Inicie sesión nuevamente
+                      tokenExpired:
+                        type: boolean
+                        example: true
+                      action:
+                        type: string
+                        example: Inicie sesión para obtener un nuevo token
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: false
+                      message:
+                        type: string
+                        example: Token inválido
+                      error:
+                        type: string
+                        example: El token JWT no es válido o está malformado
+                      invalidToken:
+                        type: boolean
+                        example: true
+                      action:
+                        type: string
+                        example: Verifique el token o inicie sesión nuevamente
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: false
+                      message:
+                        type: string
+                        example: Token faltante
+                      error:
+                        type: string
+                        example: No se proporcionó token de autorización
+                      missingToken:
+                        type: boolean
+                        example: true
+                      action:
+                        type: string
+                        example: Incluya el token en el header Authorization Bearer
+
+  /auth/2fa/resend:
+    post:
+      tags: [Autenticación]
+      summary: Reenviar código OTP
+      description: Genera y envía un nuevo código OTP al usuario cuando el anterior ha expirado
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483647
+                  example: 14
+                  description: ID del usuario que necesita un nuevo código OTP (entero positivo)
+      responses:
+        '200':
+          description: Nuevo código OTP enviado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Nuevo código OTP enviado exitosamente
+                  expiresIn:
+                    type: string
+                    example: 5 minutos
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Usuario no encontrado
+        '429':
+          description: Demasiadas solicitudes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Demasiadas solicitudes. Intente nuevamente en unos minutos
+
+  /auth/forgot-password:
+    post:
+      tags: [Autenticación]
+      summary: Solicitar recuperación de contraseña
+      description: Envía un email con un token para recuperar la contraseña
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordInput'
+      responses:
+        '200':
+          description: Email de recuperación enviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Email de recuperación enviado exitosamente
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/reset-password:
+    post:
+      tags: [Autenticación]
+      summary: Restablecer contraseña
+      description: Restablece la contraseña usando el token de recuperación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordInput'
+      responses:
+        '200':
+          description: Contraseña restablecida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Contraseña restablecida exitosamente
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    enum:
+                      - Token inválido
+                      - Error de validación
+                  error:
+                    type: string
+                    enum:
+                      - El token de recuperación no es válido
+                      - El token es obligatorio
+                      - La nueva contraseña no cumple los requisitos
+        '401':
+          description: Token de recuperación expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token expirado
+                  error:
+                    type: string
+                    example: El enlace de recuperación ha expirado. El tiempo límite es de 15 minutos
+                  timeExpired:
+                    type: boolean
+                    example: true
+                  expirationTime:
+                    type: string
+                    example: 15 minutos
+                  action:
+                    type: string
+                    example: Solicite un nuevo enlace de recuperación
+        '404':
+          description: Token de recuperación no encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token no encontrado
+                  error:
+                    type: string
+                    example: El token de recuperación no existe o ya fue utilizado
+                  tokenNotFound:
+                    type: boolean
+                    example: true
+                  action:
+                    type: string
+                    example: Verifique el enlace o solicite uno nuevo
+
+  /auth/validate-token:
+    post:
+      tags: [Autenticación]
+      summary: Validar token JWT específicamente
+      description: |
+        Valida un token JWT y devuelve información específica sobre su estado.
+        Útil para debugging y manejo granular de errores de token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  minLength: 10
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  description: Token JWT a validar
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Token válido
+                  tokenStatus:
+                    type: string
+                    example: valid
+                  expiresIn:
+                    type: string
+                    example: 2 horas
+        '400':
+          description: Token malformado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token malformado
+                  error:
+                    type: string
+                    example: El formato del token JWT no es válido
+                  tokenStatus:
+                    type: string
+                    example: malformed
+        '401':
+          description: Token expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token expirado
+                  error:
+                    type: string
+                    example: El token JWT ha expirado hace 30 minutos
+                  tokenStatus:
+                    type: string
+                    example: expired
+                  expiredSince:
+                    type: string
+                    example: 30 minutos
+        '404':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Token inválido
+                  error:
+                    type: string
+                    example: La firma del token no es válida
+                  tokenStatus:
+                    type: string
+                    example: invalid
+
+  /auth/me:
+    get:
+      tags: [Autenticación]
+      summary: Obtener información del usuario actual
+      description: Retorna la información del usuario autenticado
+      responses:
+        '200':
+          description: Información del usuario obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Usuario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/google:
+    get:
+      tags: [Autenticación]
+      summary: Iniciar autenticación con Google
+      description: Redirige al usuario a Google para autenticación OAuth
+      security: []
+      responses:
+        '302':
+          description: Redirección a Google OAuth
+        '400':
+          description: Error en la configuración OAuth
+
+  /auth/google/callback:
+    get:
+      tags: [Autenticación]
+      summary: Callback de Google OAuth
+      description: Maneja la respuesta de Google OAuth y redirige con token
+      security: []
+      parameters:
+        - name: code
+          in: query
+          description: Código de autorización de Google
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Estado de la petición OAuth
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirección al frontend con token JWT
+        '401':
+          description: Error en autenticación con Google
+
+  # Endpoints de Usuarios (existentes)
+  /usuarios:
+    get:
+      tags: [Usuarios]
+      summary: Obtener todos los usuarios
+      description: Retorna una lista de todos los usuarios registrados
+      responses:
+        '200':
+          description: Lista de usuarios obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Usuario'
+                  total:
+                    type: integer
+                    example: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Usuarios]
+      summary: Crear un nuevo usuario
+      description: Crea un nuevo usuario en el sistema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioInput'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /usuarios/{id}:
+    get:
+      tags: [Usuarios]
+      summary: Obtener usuario por ID
+      description: Retorna un usuario específico por su ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          description: ID del usuario (entero positivo)
+      responses:
+        '200':
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Usuarios]
+      summary: Actualizar usuario
+      description: Actualiza la información de un usuario existente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID del usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioInput'
+      responses:
+        '200':
+          description: Usuario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Usuarios]
+      summary: Eliminar usuario
+      description: Elimina un usuario del sistema (eliminación lógica)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID del usuario
+      responses:
+        '200':
+          description: Usuario eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Usuario eliminado correctamente
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /usuarios/roles:
+    get:
+      tags: [Usuarios]
+      summary: Obtener roles disponibles
+      description: Retorna la lista de roles disponibles para los usuarios
+      responses:
+        '200':
+          description: Lista de roles obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: [administrador, editor, usuario]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /usuarios/estadisticas:
+    get:
+      tags: [Usuarios]
+      summary: Obtener estadísticas de usuarios
+      description: Retorna estadísticas generales sobre los usuarios
+      responses:
+        '200':
+          description: Estadísticas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 15
+                      activos:
+                        type: integer
+                        example: 12
+                      inactivos:
+                        type: integer
+                        example: 3
+                      por_rol:
+                        type: object
+                        example:
+                          administrador: 2
+                          editor: 5
+                          usuario: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  schemas:
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Juan Pérez
+        email:
+          type: string
+          format: email
+          example: juan.perez@email.com
+        password:
+          type: string
+          example: hashed_password
+        rol:
+          type: string
+          example: administrador
+        fecha_creacion:
+          type: string
+          format: date-time
+          example: 2024-01-15T10:30:00.000Z
+        activo:
+          type: boolean
+          example: true
+
+    UsuarioInput:
+      type: object
+      required:
+        - nombre
+        - email
+        - password
+        - rol
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 50
+          pattern: "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$"
+          example: Juan Pérez
+          description: Solo letras y espacios, 2-50 caracteres
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          example: juan.perez@email.com
+          description: Email único válido
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
+          example: Password123
+          description: Mín 6 chars, 1 mayúscula, 1 minúscula, 1 número
+        rol:
+          type: string
+          enum: [usuario, editor, administrador]
+          example: administrador
+          description: Rol válido del usuario
+        activo:
+          type: boolean
+          default: true
+          example: true
+          description: Estado del usuario (true/false)
+
+    # Schemas para Autenticación
+    RegisterInput:
+      type: object
+      required:
+        - nombre
+        - email
+        - password
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 50
+          pattern: "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$"
+          example: Juan Pérez
+          description: Solo letras y espacios, 2-50 caracteres
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          example: juan.perez@email.com
+          description: Email válido con formato correcto
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
+          example: Password123
+          description: Mínimo 6 caracteres, al menos 1 mayúscula, 1 minúscula y 1 número
+        rol:
+          type: string
+          enum: [usuario, editor, administrador]
+          default: usuario
+          example: usuario
+          description: Rol del usuario (usuario, editor, administrador)
+
+    LoginInput:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          example: juan.perez@email.com
+          description: Email válido registrado en el sistema
+          nullable: false
+        password:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: password123
+          description: Contraseña del usuario
+          nullable: false
+      additionalProperties: false
+
+    OTPVerifyInput:
+      type: object
+      required:
+        - userId
+        - otp
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 14
+          description: ID del usuario obtenido del endpoint de login (debe ser un entero positivo)
+          nullable: false
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: "^[0-9]{6}$"
+          example: "181669"
+          description: Código OTP de exactamente 6 dígitos numéricos
+          nullable: false
+      additionalProperties: false
+
+    ForgotPasswordInput:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          example: juan.perez@email.com
+          description: Email válido registrado en el sistema
+
+    ResetPasswordInput:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 500
+          pattern: "^[a-zA-Z0-9._-]+$"
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+          description: Token JWT o hex de recuperación (32+ caracteres alfanuméricos)
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
+          example: NuevaPassword123
+          description: Nueva contraseña - mín 6 chars, 1 mayúscula, 1 minúscula, 1 número
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Autenticación exitosa
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            nombre:
+              type: string
+              example: Juan Pérez
+            email:
+              type: string
+              example: juan.perez@email.com
+            rol:
+              type: string
+              example: usuario
+        require2fa:
+          type: boolean
+          example: false
+          description: Indica si se requiere verificación 2FA
+        userId:
+          type: integer
+          example: 14
+          description: ID del usuario para usar en la verificación 2FA
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Error en la operación
+        error:
+          type: string
+          example: Mensaje de error detallado
+
+  responses:
+    Error:
+      description: Error en la solicitud
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Recurso no encontrado
+              error:
+                type: string
+                example: El usuario con ID 10 no existe
+
+    Unauthorized:
+      description: No autorizado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: No autorizado
+              error:
+                type: string
+                example: Token inválido o expirado
+
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - success
+              - message
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Error de validación
+              errors:
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                example: 
+                  - El email es obligatorio y debe ser válido
+                  - La contraseña debe tener al menos 6 caracteres
+                  - El nombre solo puede contener letras y espacios
+                  - El OTP debe ser exactamente 6 dígitos numéricos
+                  - El userId debe ser un número entero positivo
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenido del endpoint /auth/login
+
+security:
+  - BearerAuth: []
