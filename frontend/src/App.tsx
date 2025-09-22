@@ -8,10 +8,18 @@ import ResetPassword from './components/Auth/Resetear';
 import LocationManager from './components/Ubicacion';
 import Shoppi from './components/ShoppingCart';
 import AdminPayments from './components/AdminPayments';
-
+import PreferentUserMode from './components/preferentuser';
+import Campanita from './components/NotificationBell.js'
 
 // AGREGAR ESTOS IMPORTS:
 import { PaymentSuccess, PaymentCancel } from './components/paypal';
+
+// IMPORTAR EL PROVIDER DE PREFERENCIAS Y BIOMÉTRICO
+import { PreferencesProvider } from './components/PreferencesContext';
+import { BiometricProvider } from './components/BiometricContext';
+
+// IMPORTAR COMPONENTES BIOMÉTRICOS
+import BiometricGuard from './components/BiometricGuard';
 
 import './App.css';
 
@@ -23,8 +31,11 @@ function TokenHandler() {
     const token = params.get('token');
     if (token) {
       localStorage.setItem('token', token);
-      window.history.replaceState({}, document.title, '/Usuarios');
-      navigate('/Usuarios');
+      
+      // Verificar si requiere setup biométrico
+      setTimeout(() => {
+        navigate('/Usuarios');
+      }, 100);
     }
   }, [navigate]);
   return null;
@@ -33,24 +44,53 @@ function TokenHandler() {
 function App() {
   return (
     <div className="App">
-      <Router>
-        <TokenHandler />
-        <Routes>
-          <Route path="/Usuarios" element={<Usuarios />} />
-          <Route path="/" element={<Loginsito />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-          <Route path="/locations" element={<LocationManager />} />
-          <Route path="/shop" element={<Shoppi />} />
-          
-          {/* AGREGAR ESTAS RUTAS PARA PAYPAL: */}
-          <Route path="/payment/success" element={<PaymentSuccess />} />
-          <Route path="/payment/cancel" element={<PaymentCancel />} />
-          <Route path="/admin/pagos" element={<AdminPayments />} />
-
-        </Routes>
-      </Router>
+      {/* ENVOLVER TODO CON LOS PROVIDERS */}
+      <PreferencesProvider>
+        <BiometricProvider>
+          <Router>
+            <TokenHandler />
+            <Routes>
+              {/* Proteger rutas con guardia biométrica */}
+              <Route path="/Usuarios" element={
+                <BiometricGuard>
+                  <Usuarios />
+                </BiometricGuard>
+              } />
+              <Route path="/locations" element={
+                <BiometricGuard>
+                  <LocationManager />
+                </BiometricGuard>
+              } />
+              <Route path="/shop" element={
+                <BiometricGuard>
+                  <Shoppi />
+                </BiometricGuard>
+              } />
+              <Route path="/preferentuser" element={
+                <BiometricGuard>
+                  <PreferentUserMode />
+                </BiometricGuard>
+              } />
+              <Route path="/admin/pagos" element={
+                <BiometricGuard>
+                  <AdminPayments />
+                </BiometricGuard>
+              } />
+              
+              {/* Rutas públicas */}
+              <Route path="/" element={<Loginsito />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+              <Route path="/notifications" element={<Campanita />} />
+              
+              {/* AGREGAR ESTAS RUTAS PARA PAYPAL: */}
+              <Route path="/payment/success" element={<PaymentSuccess />} />
+              <Route path="/payment/cancel" element={<PaymentCancel />} />
+            </Routes>
+          </Router>
+        </BiometricProvider>
+      </PreferencesProvider>
     </div>
   );
 }

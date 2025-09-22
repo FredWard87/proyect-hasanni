@@ -1,4 +1,91 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Paper,
+  AppBar,
+  Toolbar,
+  Chip,
+  Avatar,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Backdrop,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Switch,
+  FormControlLabel
+} from '@mui/material';
+import {
+  MyLocation as MyLocationIcon,
+  Logout as LogoutIcon,
+  Notifications as NotificationsIcon,
+  LocationOn as LocationOnIcon,
+  Store as StoreIcon,
+  Settings as SettingsIcon,
+  Payment as PaymentIcon,
+  Person as PersonIcon,
+  GpsFixed as GpsFixedIcon,
+  GpsNotFixed as GpsNotFixedIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon
+} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+// Componente de campanita de notificaciones simplificado
+const NotificationBell = () => {
+  const [unreadCount] = useState(0); // En una implementación real, esto vendría de un hook
+
+  return (
+    <IconButton color="inherit">
+      <Box sx={{ position: 'relative' }}>
+        <NotificationsIcon />
+        {unreadCount > 0 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              backgroundColor: 'red',
+              color: 'white',
+              borderRadius: '50%',
+              width: 20,
+              height: 20,
+              fontSize: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {unreadCount}
+          </Box>
+        )}
+      </Box>
+    </IconButton>
+  );
+};
+
+// Función para obtener iniciales del nombre
+const getInitials = (nombre) => {
+  if (!nombre) return 'U';
+  return nombre
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 const LocationManager = () => {
   const [location, setLocation] = useState({
@@ -16,8 +103,8 @@ const LocationManager = () => {
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [showNearby, setShowNearby] = useState(false);
   const [user, setUser] = useState(null);
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const navigate = useNavigate();
 
   // Guardar ubicación offline
   const saveLocationOffline = useCallback((coords) => {
@@ -34,7 +121,6 @@ const LocationManager = () => {
       const offlineQueue = JSON.parse(localStorage.getItem('offlineLocationQueue') || '[]');
       offlineQueue.push(locationData);
       localStorage.setItem('offlineLocationQueue', JSON.stringify(offlineQueue));
-      console.log('📍 Ubicación guardada offline:', locationData);
     } catch (error) {
       console.error('Error guardando ubicación offline:', error);
     }
@@ -59,11 +145,7 @@ const LocationManager = () => {
         })
       });
 
-      if (response.ok) {
-        console.log('🌐 Ubicación guardada en servidor');
-        return true;
-      }
-      return false;
+      return response.ok;
     } catch (error) {
       console.error('Error guardando ubicación online:', error);
       return false;
@@ -85,17 +167,10 @@ const LocationManager = () => {
       permission: 'granted'
     }));
 
-    // Siempre guardar offline como respaldo
     saveLocationOffline(coords);
 
-    // Intentar guardar online si hay conexión
     if (navigator.onLine) {
-      const saved = await saveLocationOnline(coords);
-      if (!saved) {
-        console.log('⚠️ Error guardando online, disponible offline');
-      }
-    } else {
-      console.log('📱 Sin conexión, guardado offline únicamente');
+      await saveLocationOnline(coords);
     }
   }, [saveLocationOffline, saveLocationOnline]);
 
@@ -128,8 +203,6 @@ const LocationManager = () => {
       loading: false,
       permission
     }));
-
-    console.error('❌ Error de geolocalización:', errorMessage);
   }, []);
 
   // Obtener ubicación actual
@@ -151,43 +224,40 @@ const LocationManager = () => {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutos
+        maximumAge: 300000
       }
     );
   }, [handlePosition, handleError]);
 
-  // Iniciar seguimiento en tiempo real
-  const startTracking = useCallback(() => {
-    if (!navigator.geolocation) return;
-    
-    if (watchId) {
-      navigator.geolocation.clearWatch(watchId);
-    }
-
-    const id = navigator.geolocation.watchPosition(
-      handlePosition,
-      handleError,
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000 // 1 minuto
+  // Iniciar/detener seguimiento
+  const toggleTracking = useCallback(() => {
+    if (isTracking) {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        setWatchId(null);
       }
-    );
+      setIsTracking(false);
+    } else {
+      if (!navigator.geolocation) return;
+      
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
 
-    setWatchId(id);
-    setIsTracking(true);
-    console.log('🎯 Seguimiento de ubicación iniciado');
-  }, [handlePosition, handleError, watchId]);
+      const id = navigator.geolocation.watchPosition(
+        handlePosition,
+        handleError,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000
+        }
+      );
 
-  // Detener seguimiento
-  const stopTracking = useCallback(() => {
-    if (watchId) {
-      navigator.geolocation.clearWatch(watchId);
-      setWatchId(null);
+      setWatchId(id);
+      setIsTracking(true);
     }
-    setIsTracking(false);
-    console.log('⏹️ Seguimiento de ubicación detenido');
-  }, [watchId]);
+  }, [isTracking, watchId, handlePosition, handleError]);
 
   // Cargar ubicación offline
   const loadOfflineLocation = useCallback(() => {
@@ -203,7 +273,6 @@ const LocationManager = () => {
           timestamp: locationData.timestamp,
           error: null
         }));
-        console.log('📂 Ubicación offline cargada:', locationData);
         return locationData;
       }
     } catch (error) {
@@ -214,47 +283,37 @@ const LocationManager = () => {
 
   // Eliminar datos de ubicación
   const handleDeleteLocation = async () => {
-    // Usar window.confirm para evitar el warning de ESLint
     if (!window.confirm('¿Estás seguro de que deseas eliminar tus datos de ubicación?')) {
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/usuarios/ubicacion`, {
+      await fetch(`${API_URL}/usuarios/ubicacion`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      if (response.ok) {
-        // Limpiar datos locales
-        localStorage.removeItem('userLocation');
-        localStorage.removeItem('offlineLocationQueue');
-        
-        // Resetear estado
-        setLocation({
-          latitude: null,
-          longitude: null,
-          accuracy: null,
-          timestamp: null,
-          error: null,
-          loading: false,
-          permission: 'prompt'
-        });
-        
-        alert('Datos de ubicación eliminados correctamente');
-      } else {
-        alert('Error eliminando datos de ubicación');
-      }
+      localStorage.removeItem('userLocation');
+      localStorage.removeItem('offlineLocationQueue');
+      
+      setLocation({
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        timestamp: null,
+        error: null,
+        loading: false,
+        permission: 'prompt'
+      });
     } catch (error) {
       console.error('Error eliminando ubicación:', error);
-      alert('Error eliminando datos de ubicación');
     }
   };
 
-  // Obtener usuarios cercanos (solo admins)
+  // Obtener usuarios cercanos
   const fetchNearbyUsers = async () => {
     if (!location.latitude || !location.longitude || user?.rol !== 'admin') return;
 
@@ -295,45 +354,10 @@ const LocationManager = () => {
     loadOfflineLocation();
   }, [loadOfflineLocation]);
 
-  // Sincronizar cuando vuelve la conexión
+  // Manejar cambios de conexión
   useEffect(() => {
-    const handleOnline = async () => {
-      console.log('🌐 Conexión restaurada, sincronizando...');
-      
-      try {
-        const offlineQueue = JSON.parse(localStorage.getItem('offlineLocationQueue') || '[]');
-        if (offlineQueue.length === 0) return;
-
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        for (const locationData of offlineQueue) {
-          await fetch(`${API_URL}/usuarios/ubicacion`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              latitude: locationData.latitude,
-              longitude: locationData.longitude,
-              accuracy: locationData.accuracy,
-              timestamp: locationData.timestamp
-            })
-          });
-        }
-
-        // Limpiar cola después de sincronización
-        localStorage.removeItem('offlineLocationQueue');
-        console.log('✅ Sincronización completada');
-      } catch (error) {
-        console.error('Error en sincronización:', error);
-      }
-    };
-
-    const handleOffline = () => {
-      console.log('📱 Conexión perdida, modo offline activado');
-    };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -342,7 +366,7 @@ const LocationManager = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [API_URL]);
+  }, []);
 
   // Cleanup al desmontar
   useEffect(() => {
@@ -353,235 +377,264 @@ const LocationManager = () => {
     };
   }, [watchId]);
 
-  // Formatear coordenadas
-  const formatLocation = (lat, lng) => {
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  // Función para cerrar sesión
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/');
   };
 
-  // Formatear distancia
-  const formatDistance = (meters) => {
-    if (meters < 1000) {
-      return `${Math.round(meters)}m`;
-    }
-    return `${(meters / 1000).toFixed(1)}km`;
+  // Función para verificar si es admin
+  const esAdministrador = () => {
+    return user && user.rol === 'admin';
+  };
+
+  // Función para navegar a pagos
+  const irAPagos = () => {
+    navigate('/admin/pagos');
+  };
+
+  // Formatear coordenadas
+  const formatLocation = (lat, lng) => {
+    return `${lat?.toFixed(6) || 'N/A'}, ${lng?.toFixed(6) || 'N/A'}`;
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
-      <h1>🌍 Gestión de Ubicación</h1>
-      
-      {/* Estado de conexión */}
-      <div style={{ 
-        padding: '10px', 
-        marginBottom: '20px', 
-        borderRadius: '5px', 
-        backgroundColor: navigator.onLine ? '#e8f5e8' : '#fff3cd',
-        border: `1px solid ${navigator.onLine ? '#4caf50' : '#ffc107'}`
-      }}>
-        <strong>Estado: </strong>
-        {navigator.onLine ? '🌐 Online' : '📱 Offline'}
-        {!navigator.onLine && ' - Los datos se guardarán localmente'}
-      </div>
+    <Box sx={{ flexGrow: 1 }}>
+      {/* BARRA SUPERIOR */}
+      <AppBar position="static" color="primary">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Gestión de Ubicación
+          </Typography>
+          
+          <NotificationBell />
+          
+          {user && (
+            <>
+              <Chip
+                label={`${user.nombre} (${user.rol})`}
+                color={user.rol === 'admin' ? 'error' : user.rol === 'editor' ? 'warning' : 'success'}
+                sx={{ mr: 2 }}
+                avatar={
+                  <Avatar sx={{ 
+                    bgcolor: user.rol === 'admin' ? 'error.main' : 
+                             user.rol === 'editor' ? 'warning.main' : 'success.main'
+                  }}>
+                    {getInitials(user.nombre)}
+                  </Avatar>
+                }
+              />
+              <Button
+                variant="outlined"
+                startIcon={<StoreIcon />}
+                onClick={() => navigate('/Usuarios')}
+                sx={{ mr: 1, color: 'white', borderColor: 'white' }}
+              >
+                home
+              </Button>
 
-      {/* Tarjeta principal */}
-      <div style={{ 
-        border: '1px solid #ddd', 
-        borderRadius: '8px', 
-        padding: '20px', 
-        marginBottom: '20px',
-        backgroundColor: '#f9f9f9'
-      }}>
-        <h2>📍 Mi Ubicación Actual</h2>
-        
-        {location.loading && (
-          <div style={{ padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '5px', marginBottom: '15px' }}>
-            🔄 Obteniendo ubicación...
-          </div>
-        )}
+              <Button
+                variant="outlined"
+                startIcon={<StoreIcon />}
+                onClick={() => navigate('/shop')}
+                sx={{ mr: 1, color: 'white', borderColor: 'white' }}
+              >
+                Tienda
+              </Button>
 
-        {location.error && (
-          <div style={{ padding: '10px', backgroundColor: '#ffebee', borderRadius: '5px', marginBottom: '15px', color: '#d32f2f' }}>
-            ❌ {location.error}
-          </div>
-        )}
+              <Button
+                variant="outlined"
+                startIcon={<SettingsIcon />}
+                onClick={() => navigate('/preferentuser')}
+                sx={{ mr: 1, color: 'white', borderColor: 'white' }}
+              >
+                Preferencias
+              </Button>
 
-        {location.latitude && location.longitude ? (
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ 
-              fontFamily: 'monospace', 
-              fontSize: '16px', 
-              padding: '10px', 
-              backgroundColor: '#e8f5e8', 
-              borderRadius: '5px',
-              marginBottom: '10px'
-            }}>
-              📍 {formatLocation(location.latitude, location.longitude)}
-            </div>
-            
-            {location.accuracy && (
-              <div style={{ marginBottom: '10px' }}>
-                <span style={{ 
-                  padding: '4px 8px', 
-                  backgroundColor: location.accuracy < 50 ? '#4caf50' : '#ff9800', 
-                  color: 'white', 
-                  borderRadius: '12px',
-                  fontSize: '12px'
-                }}>
-                  🎯 Precisión: {Math.round(location.accuracy)}m
-                </span>
-              </div>
-            )}
-            
-            {location.timestamp && (
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-                🕒 {new Date(location.timestamp).toLocaleString()}
-              </div>
-            )}
-
-            <div style={{ fontSize: '14px', color: '#666' }}>
-              {isTracking ? '🔴 Seguimiento activo' : '⚫ Ubicación estática'}
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '15px', backgroundColor: '#fff3cd', borderRadius: '5px', marginBottom: '20px' }}>
-            ℹ️ No se ha obtenido tu ubicación. Haz clic en "Obtener Ubicación" para comenzar.
-          </div>
-        )}
-
-        {/* Botones de control */}
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button 
-            onClick={getCurrentLocation}
-            disabled={location.loading}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#2196f3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: location.loading ? 'not-allowed' : 'pointer',
-              opacity: location.loading ? 0.6 : 1
-            }}
-          >
-            🎯 Obtener Ubicación
-          </button>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input 
-              type="checkbox"
-              checked={isTracking}
-              onChange={(e) => e.target.checked ? startTracking() : stopTracking()}
-              disabled={location.loading || !location.latitude}
-            />
-            📡 Seguimiento en tiempo real
-          </label>
-
-          {location.latitude && (
-            <button 
-              onClick={handleDeleteLocation}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer'
-              }}
-            >
-              🗑️ Eliminar Datos
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Usuarios cercanos (solo para admins) */}
-      {user?.rol === 'admin' && location.latitude && (
-        <div style={{ 
-          border: '1px solid #ddd', 
-          borderRadius: '8px', 
-          padding: '20px',
-          backgroundColor: '#f9f9f9'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h3>👥 Usuarios Cercanos</h3>
-            <button 
-              onClick={fetchNearbyUsers}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#4caf50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer'
-              }}
-            >
-              🔍 Buscar
-            </button>
-          </div>
-
-          {showNearby && (
-            <div>
-              {nearbyUsers.length > 0 ? (
-                <div>
-                  <p style={{ marginBottom: '15px' }}>
-                    📍 Encontrados {nearbyUsers.length} usuarios en un radio de 5km:
-                  </p>
-                  {nearbyUsers.map((nearbyUser) => (
-                    <div key={nearbyUser.id} style={{ 
-                      padding: '10px', 
-                      border: '1px solid #ddd', 
-                      borderRadius: '5px', 
-                      marginBottom: '10px',
-                      backgroundColor: 'white'
-                    }}>
-                      <div style={{ fontWeight: 'bold' }}>{nearbyUser.nombre}</div>
-                      <div style={{ fontSize: '14px', color: '#666' }}>{nearbyUser.email}</div>
-                      <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                        <span style={{ 
-                          padding: '2px 6px', 
-                          backgroundColor: nearbyUser.rol === 'admin' ? '#f44336' : '#2196f3', 
-                          color: 'white', 
-                          borderRadius: '10px',
-                          marginRight: '10px'
-                        }}>
-                          {nearbyUser.rol}
-                        </span>
-                        <span style={{ color: '#666' }}>
-                          📏 {formatDistance(nearbyUser.distance)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ padding: '15px', backgroundColor: '#fff3cd', borderRadius: '5px' }}>
-                  ℹ️ No hay usuarios cercanos en un radio de 5km.
-                </div>
+              {esAdministrador() && (
+                <Button
+                  variant="contained"
+                  startIcon={<PaymentIcon />}
+                  onClick={irAPagos}
+                  sx={{ mr: 1 }}
+                >
+                  Pagos
+                </Button>
               )}
-            </div>
+              
+              <Button
+                color="inherit"
+                startIcon={<LogoutIcon />}
+                onClick={handleLogout}
+              >
+                Salir
+              </Button>
+            </>
           )}
-        </div>
-      )}
+        </Toolbar>
+      </AppBar>
 
-      {/* Información técnica */}
-      <div style={{ 
-        marginTop: '20px', 
-        padding: '15px', 
-        backgroundColor: '#f0f0f0', 
-        borderRadius: '5px',
-        fontSize: '12px',
-        color: '#666'
-      }}>
-        <strong>ℹ️ Información:</strong>
-        <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
-          <li>Los datos se guardan automáticamente en el servidor cuando hay conexión</li>
-          <li>Sin conexión, los datos se almacenan localmente y se sincronizan al reconectarse</li>
-          <li>El seguimiento en tiempo real actualiza tu ubicación cada minuto</li>
-          <li>Solo los administradores pueden ver usuarios cercanos</li>
-          <li>Puedes eliminar tus datos de ubicación en cualquier momento</li>
-        </ul>
-      </div>
-    </div>
+      {/* CONTENIDO PRINCIPAL */}
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        {/* Estado de conexión */}
+        <Alert 
+          severity={isOnline ? "success" : "warning"} 
+          icon={isOnline ? <WifiIcon /> : <WifiOffIcon />}
+          sx={{ mb: 3 }}
+        >
+          {isOnline ? 'Conectado - Modo online' : 'Sin conexión - Modo offline'}
+        </Alert>
+
+        {/* Tarjeta principal de ubicación */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <MyLocationIcon sx={{ mr: 1 }} />
+              Mi Ubicación Actual
+            </Typography>
+
+            {location.loading && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <CircularProgress size={20} sx={{ mr: 2 }} />
+                <Typography>Obteniendo ubicación...</Typography>
+              </Box>
+            )}
+
+            {location.error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {location.error}
+              </Alert>
+            )}
+
+            {location.latitude && location.longitude ? (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" color="primary" sx={{ fontFamily: 'monospace', mb: 1 }}>
+                  📍 {formatLocation(location.latitude, location.longitude)}
+                </Typography>
+                
+                {location.accuracy && (
+                  <Chip 
+                    label={`Precisión: ${Math.round(location.accuracy)}m`}
+                    color={location.accuracy < 50 ? "success" : "warning"}
+                    size="small"
+                    sx={{ mr: 1, mb: 1 }}
+                  />
+                )}
+                
+                {location.timestamp && (
+                  <Typography variant="body2" color="text.secondary">
+                    🕒 {new Date(location.timestamp).toLocaleString()}
+                  </Typography>
+                )}
+
+                <Chip 
+                  label={isTracking ? 'Seguimiento activo' : 'Ubicación estática'}
+                  icon={isTracking ? <GpsFixedIcon /> : <GpsNotFixedIcon />}
+                  color={isTracking ? "success" : "default"}
+                  sx={{ mt: 1 }}
+                />
+              </Box>
+            ) : (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                No se ha obtenido tu ubicación. Haz clic en "Obtener Ubicación" para comenzar.
+              </Alert>
+            )}
+
+            {/* Botones de control */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button
+                variant="contained"
+                startIcon={<MyLocationIcon />}
+                onClick={getCurrentLocation}
+                disabled={location.loading}
+              >
+                Obtener Ubicación
+              </Button>
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isTracking}
+                    onChange={toggleTracking}
+                    disabled={location.loading || !location.latitude}
+                  />
+                }
+                label="Seguimiento en tiempo real"
+              />
+
+              {location.latitude && (
+                <Button
+                  variant="outlined"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleDeleteLocation}
+                  color="error"
+                >
+                  Eliminar Datos
+                </Button>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Usuarios cercanos (solo para admins) */}
+        {user?.rol === 'admin' && location.latitude && (
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  👥 Usuarios Cercanos
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<SearchIcon />}
+                  onClick={fetchNearbyUsers}
+                >
+                  Buscar
+                </Button>
+              </Box>
+
+              {showNearby && (
+                <Box>
+                  {nearbyUsers.length > 0 ? (
+                    <List>
+                      {nearbyUsers.map((nearbyUser) => (
+                        <ListItem key={nearbyUser.id} divider>
+                          <ListItemIcon>
+                            <PersonIcon color="primary" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={nearbyUser.nombre}
+                            secondary={
+                              <Box>
+                                <Typography variant="body2">{nearbyUser.email}</Typography>
+                                <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                                  <Chip 
+                                    label={nearbyUser.rol}
+                                    size="small"
+                                    color={nearbyUser.rol === 'admin' ? "error" : "primary"}
+                                  />
+                                  <Typography variant="caption">
+                                    📏 {Math.round(nearbyUser.distance)}m de distancia
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Alert severity="info">
+                      No hay usuarios cercanos en un radio de 5km.
+                    </Alert>
+                  )}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </Container>
+    </Box>
   );
 };
 

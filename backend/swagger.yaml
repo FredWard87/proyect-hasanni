@@ -1466,3 +1466,140 @@ components:
 
     CrearOrdenInput:
       type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - productId
+              - quantity
+            properties:
+              productId:
+                type: integer
+                example: 1
+              quantity:
+                type: integer
+                minimum: 1
+                example: 2
+        total:
+          type: number
+          format: float
+          minimum: 0.01
+          example: 279.97
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Error en la operación
+        error:
+          type: string
+          example: Mensaje de error detallado
+
+  responses:
+    Unauthorized:
+      description: No autorizado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: No autorizado
+              error:
+                type: string
+                example: Token inválido o expirado
+
+    Forbidden:
+      description: Acceso denegado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Acceso denegado
+              error:
+                type: string
+                example: Se requieren permisos de administrador
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Recurso no encontrado
+              error:
+                type: string
+                example: El usuario con ID 10 no existe
+
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Error de validación
+              errors:
+                type: array
+                items:
+                  type: string
+                example: 
+                  - El email es obligatorio
+                  - La contraseña debe tener al menos 6 caracteres
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Error interno del servidor
+              error:
+                type: string
+                example: Error de conexión con la base de datos
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenido del endpoint /auth/login
+
+security:
+  - BearerAuth: []

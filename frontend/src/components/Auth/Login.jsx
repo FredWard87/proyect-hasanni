@@ -1,34 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Box, TextField, Button, Typography, Alert, Link, Paper, Stack,
   Fade, Zoom, InputAdornment, IconButton, Divider, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Chip
+  Dialog, DialogTitle, DialogContent, DialogActions, Chip, Backdrop
 } from '@mui/material';
 import {
   Google, Visibility, VisibilityOff, Email, Lock,
-  Security, ArrowBack, LocationOn, LocationOff
+  Security, ArrowBack, LocationOn, LocationOff,
+  Fingerprint, Security as SecurityIcon, WifiOff, Wifi
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+
+// IMPORTAR COMPONENTES BIOMÉTRICOS
+import PINSetup from '../PINSetup';
+import PINVerify from '../PINVerify';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1: Login, 2: 2FA
   const [otp, setOtp] = useState('');
   const [userId, setUserId] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [authMode, setAuthMode] = useState('online'); // 'online' o 'offline'
+  const [offlineCode, setOfflineCode] = useState('');
   
   // Estados para geolocalización
   const [locationDialog, setLocationDialog] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('idle'); // idle, requesting, success, denied
+  const [locationStatus, setLocationStatus] = useState('idle');
   const [savedToken, setSavedToken] = useState(null);
   
+  // Estados para sistema biométrico
+  const [showPINSetup, setShowPINSetup] = useState(false);
+  const [showPINVerify, setShowPINVerify] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState(null);
+  const [requiresBiometric, setRequiresBiometric] = useState(false);
+  
   const navigate = useNavigate();
+
+  // Verificar estado biométrico después del login
+  const checkBiometricStatus = async (token) => {
+    try {
+      const response = await fetch(`${API_URL}/biometric/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBiometricStatus(data);
+        
+        if (data.requiresSetup) {
+          setShowPINSetup(true);
+          setRequiresBiometric(true);
+        } else if (data.biometricEnabled) {
+          setShowPINVerify(true);
+          setRequiresBiometric(true);
+        } else {
+          setLocationDialog(true);
+        }
+      } else {
+        setLocationDialog(true);
+      }
+    } catch (error) {
+      console.error('Error verificando estado biométrico:', error);
+      setLocationDialog(true);
+    }
+  };
 
   // Función para solicitar ubicación
   const requestLocation = async (token) => {
@@ -37,7 +79,6 @@ const Login = () => {
     if (!navigator.geolocation) {
       console.log('Geolocalización no soportada');
       setLocationStatus('denied');
-      // Continuar sin ubicación
       setTimeout(() => navigate('/Usuarios'), 1500);
       return;
     }
@@ -45,7 +86,6 @@ const Login = () => {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          // Enviar ubicación al servidor
           await axios.post(`${API_URL}/usuarios/ubicacion`, {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -54,7 +94,6 @@ const Login = () => {
             headers: { Authorization: `Bearer ${token}` }
           });
 
-          // Guardar también en localStorage como respaldo
           const locationData = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -73,7 +112,6 @@ const Login = () => {
           
         } catch (error) {
           console.error('Error guardando ubicación:', error);
-          // Guardar solo offline si falla el servidor
           try {
             const locationData = {
               latitude: position.coords.latitude,
@@ -84,7 +122,6 @@ const Login = () => {
             };
             localStorage.setItem('userLocation', JSON.stringify(locationData));
             
-            // Agregar a cola de sincronización
             const offlineQueue = JSON.parse(localStorage.getItem('offlineLocationQueue') || '[]');
             offlineQueue.push(locationData);
             localStorage.setItem('offlineLocationQueue', JSON.stringify(offlineQueue));
@@ -124,7 +161,6 @@ const Login = () => {
         setLocationStatus('denied');
         setError(`Error de ubicación: ${errorMessage}`);
         
-        // Continuar sin ubicación después de 2 segundos
         setTimeout(() => {
           setLocationDialog(false);
           navigate('/Usuarios');
@@ -133,7 +169,7 @@ const Login = () => {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutos
+        maximumAge: 300000
       }
     );
   };
@@ -144,6 +180,7 @@ const Login = () => {
     navigate('/Usuarios');
   };
 
+  // Login mejorado con manejo de errores de conexión
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null);
@@ -155,24 +192,29 @@ const Login = () => {
       
       if (res.data.require2fa) {
         setUserId(res.data.userId);
+        setAuthMode(res.data.mode);
         setStep(2);
-        setSuccess('Código de verificación enviado a tu correo electrónico');
-      } else {
-        localStorage.setItem('token', res.data.token);
-        setSavedToken(res.data.token);
-        setSuccess('¡Inicio de sesión exitoso!');
         
-        // Mostrar dialog de ubicación después de login exitoso
-        setTimeout(() => {
-          setLocationDialog(true);
-        }, 1000);
+        if (res.data.mode === 'offline') {
+          setOfflineCode(res.data.offlineCode || '');
+          setSuccess(res.data.message);
+        } else {
+          setSuccess('Código de verificación enviado a tu correo electrónico');
+        }
       }
     } catch (err) {
       setIsLoading(false);
-      setError(err.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.');
+      
+      // Manejar errores de conexión
+      if (err.code === 'NETWORK_ERROR' || !err.response) {
+        setError('❌ Sin conexión a internet. El servidor no está disponible.');
+      } else {
+        setError(err.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.');
+      }
     }
   };
 
+  // Verificación OTP mejorada
   const handle2FA = async (e) => {
     e.preventDefault();
     setError(null);
@@ -181,18 +223,22 @@ const Login = () => {
     try {
       const res = await axios.post(`${API_URL}/auth/2fa/verify`, { userId, otp });
       setIsLoading(false);
+      
       localStorage.setItem('token', res.data.token);
       setSavedToken(res.data.token);
-      setSuccess('¡Verificación exitosa!');
+      setSuccess(`✅ ${res.data.message}`);
       
-      // Mostrar dialog de ubicación después de 2FA exitoso
-      setTimeout(() => {
-        setLocationDialog(true);
-      }, 1000);
+      // Verificar requisitos biométricos
+      await checkBiometricStatus(res.data.token);
       
     } catch (err) {
       setIsLoading(false);
-      setError(err.response?.data?.message || 'Código incorrecto. Intenta nuevamente.');
+      
+      if (err.code === 'NETWORK_ERROR' || !err.response) {
+        setError('❌ Error de conexión. Verifica tu internet e intenta nuevamente.');
+      } else {
+        setError(err.response?.data?.message || 'Código incorrecto. Intenta nuevamente.');
+      }
     }
   };
 
@@ -208,6 +254,32 @@ const Login = () => {
     setStep(1);
     setError(null);
     setSuccess(null);
+    setAuthMode('online');
+    setOfflineCode('');
+  };
+
+  // Manejar éxito del setup de PIN
+  const handlePINSetupSuccess = () => {
+    setShowPINSetup(false);
+    setLocationDialog(true);
+  };
+
+  // Manejar éxito de verificación de PIN
+  const handlePINVerifySuccess = () => {
+    setShowPINVerify(false);
+    setLocationDialog(true);
+  };
+
+  // Manejar cancelación de PIN
+  const handlePINCancel = () => {
+    if (biometricStatus?.requiresSetup) {
+      setError('Debes configurar el PIN de seguridad para continuar');
+      setShowPINSetup(true);
+    } else {
+      setShowPINVerify(false);
+      setError('Verificación de seguridad cancelada');
+      localStorage.removeItem('token');
+    }
   };
 
   return (
@@ -407,13 +479,45 @@ const Login = () => {
             <Fade in={step === 2} timeout={500}>
               <form onSubmit={handle2FA}>
                 <Box textAlign="center" mb={2}>
-                  <Security sx={{ fontSize: 50, color: 'primary.main', mb: 1 }} />
+                  {authMode === 'offline' ? (
+                    <WifiOff sx={{ fontSize: 50, color: 'warning.main', mb: 1 }} />
+                  ) : (
+                    <Security sx={{ fontSize: 50, color: 'primary.main', mb: 1 }} />
+                  )}
+                  
                   <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Verificación en dos pasos
+                    {authMode === 'offline' ? '🔴 Modo Offline' : 'Verificación en dos pasos'}
                   </Typography>
+                  
                   <Typography variant="body2" color="text.secondary" mb={2}>
-                    Hemos enviado un código de verificación a tu correo electrónico.
+                    {authMode === 'offline' 
+                      ? 'Usa el código proporcionado para continuar'
+                      : 'Hemos enviado un código de verificación a tu correo electrónico.'}
                   </Typography>
+                  
+                  {authMode === 'offline' && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      <Typography variant="body2">
+                        ⚠️ Funcionalidad limitada hasta restaurar conexión
+                      </Typography>
+                    </Alert>
+                  )}
+                  
+                  {authMode === 'offline' && offlineCode && (
+                    <Box sx={{ 
+                      bgcolor: 'warning.light', 
+                      p: 2, 
+                      borderRadius: 2,
+                      mb: 2 
+                    }}>
+                      <Typography variant="h6" color="warning.dark">
+                        Código: {offlineCode}
+                      </Typography>
+                      <Typography variant="caption" color="warning.dark">
+                        Expira en 10 minutos
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
                 
                 <TextField
@@ -426,7 +530,7 @@ const Login = () => {
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Security color="action" />
+                        {authMode === 'offline' ? <WifiOff color="action" /> : <Security color="action" />}
                       </InputAdornment>
                     ),
                   }}
@@ -440,7 +544,7 @@ const Login = () => {
                 <Button 
                   type="submit" 
                   variant="contained" 
-                  color="primary" 
+                  color={authMode === 'offline' ? 'warning' : 'primary'} 
                   fullWidth 
                   sx={{ 
                     mt: 2, 
@@ -475,7 +579,7 @@ const Login = () => {
       {/* Dialog de Ubicación */}
       <Dialog 
         open={locationDialog} 
-        onClose={() => {}}
+        onClose={skipLocation}
         maxWidth="sm" 
         fullWidth
         PaperProps={{
@@ -554,6 +658,26 @@ const Login = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Dialog de Setup de PIN */}
+      <PINSetup
+        open={showPINSetup}
+        onClose={() => setShowPINSetup(false)}
+        onSuccess={handlePINSetupSuccess}
+        requiresSetup={biometricStatus?.requiresSetup || false}
+      />
+
+      {/* Dialog de Verificación de PIN */}
+      <PINVerify
+        open={showPINVerify}
+        onVerify={handlePINVerifySuccess}
+        onCancel={handlePINCancel}
+      />
+
+      {/* Backdrop global de loading */}
+      <Backdrop open={isLoading} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </Box>
   );
 };

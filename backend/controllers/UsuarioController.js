@@ -1,4 +1,5 @@
 const Usuario = require('../models/Usuario');
+const notificationMiddleware = require('../middlewares/notificationMiddleware'); // ← NUEVO
 
 class UsuarioController {
   
@@ -26,12 +27,54 @@ class UsuarioController {
     }
   }
 
+  // POST /api/usuarios/ubicacion - Actualizar ubicación
+  static async actualizarUbicacion(req, res) {
+    try {
+      const userId = req.user.userId;
+      const { latitude, longitude, accuracy, timestamp } = req.body;
+      
+      if (typeof latitude !== 'number' || typeof longitude !== 'number' || typeof accuracy !== 'number') {
+        return res.status(400).json({
+          success: false,
+          message: 'Datos de ubicación inválidos'
+        });
+      }
+
+      // Actualizar ubicación en la base de datos
+      await Usuario.actualizarUbicacion(userId, {
+        latitude,
+        longitude,
+        accuracy,
+        timestamp
+      });
+
+      // Notificar al usuario sobre la actualización de ubicación ← NUEVO
+      await notificationMiddleware.onUserDataModified(
+        req.user.userId,
+        userId,
+        { tipo: 'ubicacion', mensaje: 'Ubicación actualizada correctamente' }
+      );
+
+      res.json({
+        success: true,
+        message: 'Ubicación actualizada exitosamente'
+      });
+
+    } catch (error) {
+      console.error('Error al actualizar ubicación:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar ubicación',
+        error: error.message
+      });
+    }
+  }
+
   // GET /api/usuarios/:id - Obtener usuario por ID
   static async obtenerUsuarioPorId(req, res) {
     try {
       const { id } = req.params;
       
-      // Validar que el ID sea un número
       if (!id || isNaN(parseInt(id))) {
         return res.status(400).json({
           success: false,
@@ -68,7 +111,6 @@ class UsuarioController {
     try {
       const { nombre, email, password, rol } = req.body;
       
-      // Validar datos requeridos
       if (!nombre || !email || !password) {
         return res.status(400).json({
           success: false,
@@ -77,13 +119,9 @@ class UsuarioController {
         });
       }
       
-      // Crear nueva instancia de usuario
       const usuario = new Usuario(null, nombre.trim(), email.trim(), password, rol || '');
-      
-      // Guardar en base de datos
       await usuario.guardar();
       
-      // Retornar usuario creado (sin password)
       const usuarioRespuesta = {
         id: usuario.id,
         nombre: usuario.nombre,
@@ -91,6 +129,15 @@ class UsuarioController {
         rol: usuario.rol,
         fecha_creacion: usuario.fecha_creacion
       };
+
+      // Notificar al administrador sobre nuevo usuario ← NUEVO
+      if (req.user && req.user.rol === 'admin') {
+        await notificationMiddleware.onUserDataModified(
+          req.user.userId,
+          usuario.id,
+          { tipo: 'nuevo_usuario', mensaje: `Nuevo usuario creado: ${usuario.nombre}` }
+        );
+      }
       
       res.status(201).json({
         success: true,
@@ -118,7 +165,6 @@ class UsuarioController {
       const { id } = req.params;
       const { nombre, email, rol } = req.body;
       
-      // Validar ID
       if (!id || isNaN(parseInt(id))) {
         return res.status(400).json({
           success: false,
@@ -126,7 +172,6 @@ class UsuarioController {
         });
       }
       
-      // Validar datos requeridos
       if (!nombre || !email) {
         return res.status(400).json({
           success: false,
@@ -143,13 +188,33 @@ class UsuarioController {
         });
       }
       
-      // Actualizar campos
+      // Guardar datos antiguos para la notificación ← NUEVO
+      const datosAntiguos = {
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol
+      };
+      
       usuario.nombre = nombre.trim();
       usuario.email = email.trim();
       usuario.rol = rol || usuario.rol;
       
-      // Guardar cambios
       await usuario.actualizar();
+
+      // Notificar al usuario sobre los cambios ← NUEVO
+      await notificationMiddleware.onUserDataModified(
+        req.user.userId,
+        usuario.id,
+        { 
+          tipo: 'actualizacion_perfil',
+          cambios: {
+            nombre: { de: datosAntiguos.nombre, a: usuario.nombre },
+            email: { de: datosAntiguos.email, a: usuario.email },
+            rol: { de: datosAntiguos.rol, a: usuario.rol }
+          },
+          administrador: req.user.nombre || 'Sistema'
+        }
+      );
       
       res.json({
         success: true,
@@ -177,7 +242,6 @@ class UsuarioController {
     try {
       const { id } = req.params;
       
-      // Validar ID
       if (!id || isNaN(parseInt(id))) {
         return res.status(400).json({
           success: false,
@@ -194,7 +258,25 @@ class UsuarioController {
         });
       }
       
+      // Guardar información para la notificación ← NUEVO
+      const usuarioEliminado = {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email
+      };
+      
       await usuario.eliminar();
+
+      // Notificar a administradores sobre eliminación ← NUEVO
+      await notificationMiddleware.onUserDataModified(
+        req.user.userId,
+        usuario.id,
+        { 
+          tipo: 'usuario_eliminado',
+          usuario: usuarioEliminado,
+          eliminado_por: req.user.nombre || 'Sistema'
+        }
+      );
       
       res.json({
         success: true,

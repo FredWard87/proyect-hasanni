@@ -2,7 +2,10 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../config/database');
 
 class Usuario {
-  constructor(id = null, nombre = '', email = '', password = '', rol = '', otp = null, otp_expires = null, proveedor = null) {
+  constructor(id = null, nombre = '', email = '', password = '', rol = '', 
+              otp = null, otp_expires = null, proveedor = null,
+              pin_hash = null, pin_created_at = null, biometric_enabled = false,
+              failed_pin_attempts = 0, pin_locked_until = null) {
     this.id = id;
     this.nombre = nombre;
     this.email = email;
@@ -11,7 +14,18 @@ class Usuario {
     this.fecha_creacion = null;
     this.otp = otp;
     this.otp_expires = otp_expires;
-    this.proveedor = proveedor; // <--- nuevo campo
+    this.proveedor = proveedor; 
+    this.current_latitude = null;
+    this.current_longitude = null;
+    this.last_location_update = null;
+    this.accuracy = null;
+    
+    // Nuevas propiedades biométricas
+    this.pin_hash = pin_hash;
+    this.pin_created_at = pin_created_at;
+    this.biometric_enabled = biometric_enabled;
+    this.failed_pin_attempts = failed_pin_attempts;
+    this.pin_locked_until = pin_locked_until;
   }
 
   // Validar roles permitidos
@@ -40,15 +54,49 @@ class Usuario {
         REGEX_NUMBER: /[0-9]/,
         REGEX_SPECIAL: /[!@#$%^&*(),.?":{}|<>]/,
         REGEX_NO_SPACES: /^\S+$/
+      },
+      PIN: {
+        LENGTH: 4,
+        REGEX: /^\d{4}$/
       }
     };
   }
 
-  // Obtener todos los usuarios
+  // Actualizar ubicación del usuario
+  static async actualizarUbicacion(userId, ubicacion) {
+    const { latitude, longitude, accuracy, timestamp } = ubicacion;
+
+    try {
+      // Actualizar columnas en la tabla usuarios
+      const result = await query(
+        `UPDATE usuarios
+         SET current_latitude = $1,
+             current_longitude = $2,
+             last_location_update = $3,
+             accuracy = $4
+         WHERE id = $5
+         RETURNING id, current_latitude, current_longitude, last_location_update, accuracy`,
+        [latitude, longitude, timestamp, accuracy, userId]
+      );
+
+      if (result.rowCount === 0) {
+        throw new Error('Usuario no encontrado para actualizar ubicación');
+      }
+
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error al actualizar ubicación en DB:', error.message);
+      throw new Error('Error al actualizar ubicación del usuario');
+    }
+  }
+
+  // Obtener todos los usuarios (incluyendo datos biométricos básicos)
   static async obtenerTodos() {
     try {
       const result = await query(
-        'SELECT id, nombre, email, rol, fecha_creacion FROM usuarios ORDER BY fecha_creacion DESC'
+        `SELECT id, nombre, email, rol, fecha_creacion, 
+                biometric_enabled, pin_created_at, failed_pin_attempts
+         FROM usuarios ORDER BY fecha_creacion DESC`
       );
       
       return result.rows.map(row => {
@@ -62,7 +110,7 @@ class Usuario {
     }
   }
 
-  // Obtener usuario por ID
+  // Obtener usuario por ID (con datos biométricos)
   static async obtenerPorId(id) {
     try {
       // Validar ID
@@ -71,7 +119,9 @@ class Usuario {
       }
 
       const result = await query(
-        'SELECT id, nombre, email, rol, fecha_creacion FROM usuarios WHERE id = $1',
+        `SELECT id, nombre, email, rol, fecha_creacion, 
+                biometric_enabled, pin_created_at, failed_pin_attempts, pin_locked_until
+         FROM usuarios WHERE id = $1`,
         [id]
       );
       
@@ -88,7 +138,7 @@ class Usuario {
     }
   }
 
-  // Obtener usuario por email
+  // Obtener usuario por email (con datos biométricos completos)
   static async obtenerPorEmail(email) {
     try {
       // Validar email básico
@@ -114,11 +164,65 @@ class Usuario {
     }
   }
 
+  // Obtener usuario con datos biométricos completos (para verificación de PIN)
+  static async obtenerConDatosBiometricos(id) {
+    try {
+      const result = await query(
+        `SELECT id, nombre, email, rol, fecha_creacion,
+                pin_hash, biometric_enabled, failed_pin_attempts, pin_locked_until
+         FROM usuarios WHERE id = $1`,
+        [id]
+      );
+      
+      if (result.rows.length === 0) {
+        return null;
+      }
+      
+      const usuario = new Usuario();
+      Object.assign(usuario, result.rows[0]);
+      return usuario;
+    } catch (error) {
+      console.error('Error al obtener usuario con datos biométricos:', error);
+      throw error;
+    }
+  }
+
   // Validar ID
   static validarId(id) {
     if (!id) return false;
     const numId = parseInt(id);
     return !isNaN(numId) && numId > 0 && Number.isInteger(numId);
+  }
+
+  // Validar PIN
+  validarPIN(pin) {
+    const errores = [];
+    
+    if (!pin) {
+      errores.push('El PIN es requerido');
+      return errores;
+    }
+
+    if (typeof pin !== 'string') {
+      errores.push('El PIN debe ser una cadena de texto');
+      return errores;
+    }
+
+    if (pin.length !== Usuario.VALIDACIONES.PIN.LENGTH) {
+      errores.push(`El PIN debe tener exactamente ${Usuario.VALIDACIONES.PIN.LENGTH} dígitos`);
+    }
+
+    if (!Usuario.VALIDACIONES.PIN.REGEX.test(pin)) {
+      errores.push('El PIN debe contener solo números');
+    }
+
+    // Verificar PINs comunes inseguros
+    const pinsComunes = ['0000', '1111', '1234', '9999', '2580'];
+    if (pinsComunes.includes(pin)) {
+      errores.push('El PIN es demasiado común, elige uno más seguro');
+    }
+
+    return errores;
   }
 
   // Validar y limpiar nombre
@@ -297,43 +401,55 @@ class Usuario {
     return errores;
   }
 
- validar(esActualizacion = false) {
-  const errores = [];
+  validar(esActualizacion = false) {
+    const errores = [];
 
-  // Validar nombre
-  errores.push(...this.validarNombre(this.nombre));
+    // Validar nombre
+    errores.push(...this.validarNombre(this.nombre));
 
-  // Validar email
-  errores.push(...this.validarEmail(this.email));
+    // Validar email
+    errores.push(...this.validarEmail(this.email));
 
-  // Validar contraseña solo si no es actualización o si se proporciona
-  // PERO si el proveedor es google, NO la pidas
-  if (!esActualizacion) {
-    if (!this.proveedor || this.proveedor !== 'google') {
+    // Validar contraseña solo si no es actualización o si se proporciona
+    // PERO si el proveedor es google, NO la pidas
+    if (!esActualizacion) {
+      if (!this.proveedor || this.proveedor !== 'google') {
+        errores.push(...this.validarPassword(this.password));
+      }
+    } else if (this.password && (!this.proveedor || this.proveedor !== 'google')) {
       errores.push(...this.validarPassword(this.password));
     }
-  } else if (this.password && (!this.proveedor || this.proveedor !== 'google')) {
-    errores.push(...this.validarPassword(this.password));
+
+    // Validar rol
+    errores.push(...this.validarRol(this.rol));
+
+    // Limpiar datos si no hay errores críticos
+    if (errores.length === 0) {
+      this.nombre = this.nombre.trim();
+      this.email = this.email.trim().toLowerCase();
+      this.rol = this.rol.trim().toLowerCase();
+    }
+
+    return errores;
   }
-
-  // Validar rol
-  errores.push(...this.validarRol(this.rol));
-
-  // Limpiar datos si no hay errores críticos
-  if (errores.length === 0) {
-    this.nombre = this.nombre.trim();
-    this.email = this.email.trim().toLowerCase();
-    this.rol = this.rol.trim().toLowerCase();
-  }
-
-  return errores;
-}
 
   // Encriptar contraseña
   async encriptarPassword() {
     if (this.password) {
       const saltRounds = parseInt(process.env.SALT_ROUNDS) || 12;
       this.password = await bcrypt.hash(this.password, saltRounds);
+    }
+  }
+
+  // Encriptar PIN
+  async encriptarPIN(pin) {
+    if (pin) {
+      const saltRounds = 10; // Menos rounds para PINs más cortos
+      this.pin_hash = await bcrypt.hash(pin, saltRounds);
+      this.pin_created_at = new Date();
+      this.biometric_enabled = true;
+      this.failed_pin_attempts = 0;
+      this.pin_locked_until = null;
     }
   }
 
@@ -345,48 +461,164 @@ class Usuario {
     return await bcrypt.compare(passwordPlano, this.password);
   }
 
+  // Verificar PIN
+  async verificarPIN(pinPlano) {
+    if (!this.pin_hash || !pinPlano) {
+      return false;
+    }
+    return await bcrypt.compare(pinPlano, this.pin_hash);
+  }
+
+  // Verificar si el PIN está bloqueado
+  estaPINBloqueado() {
+    if (this.pin_locked_until && this.pin_locked_until > new Date()) {
+      return true;
+    }
+    return this.failed_pin_attempts >= 5;
+  }
+
+  // Incrementar intentos fallidos de PIN
+  async incrementarIntentosFallidos() {
+    this.failed_pin_attempts += 1;
+    
+    if (this.failed_pin_attempts >= 5) {
+      this.pin_locked_until = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+    }
+
+    await this.actualizarIntentosPIN();
+  }
+
+  // Resetear intentos fallidos de PIN
+  async resetearIntentosFallidos() {
+    this.failed_pin_attempts = 0;
+    this.pin_locked_until = null;
+    await this.actualizarIntentosPIN();
+  }
+
+  // Actualizar intentos de PIN en la base de datos
+  async actualizarIntentosPIN() {
+    try {
+      await query(
+        `UPDATE usuarios 
+         SET failed_pin_attempts = $1, pin_locked_until = $2 
+         WHERE id = $3`,
+        [this.failed_pin_attempts, this.pin_locked_until, this.id]
+      );
+    } catch (error) {
+      console.error('Error actualizando intentos de PIN:', error);
+      throw error;
+    }
+  }
+
+  // Configurar PIN biométrico
+  async configurarPIN(pin) {
+    const erroresPIN = this.validarPIN(pin);
+    if (erroresPIN.length > 0) {
+      throw new Error(`Errores de validación del PIN: ${erroresPIN.join(', ')}`);
+    }
+
+    await this.encriptarPIN(pin);
+    
+    try {
+      const result = await query(
+        `UPDATE usuarios 
+         SET pin_hash = $1, pin_created_at = $2, biometric_enabled = $3,
+             failed_pin_attempts = $4, pin_locked_until = $5
+         WHERE id = $6 
+         RETURNING id, nombre, email, biometric_enabled, pin_created_at`,
+        [this.pin_hash, this.pin_created_at, this.biometric_enabled, 
+         this.failed_pin_attempts, this.pin_locked_until, this.id]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Usuario no encontrado para configurar PIN');
+      }
+
+      console.log(`✅ PIN configurado para usuario: ${this.nombre} (${this.email})`);
+      return this;
+
+    } catch (error) {
+      console.error('Error configurando PIN:', error.message);
+      throw error;
+    }
+  }
+
+  // Deshabilitar autenticación biométrica
+  async deshabilitarBiometrico() {
+    try {
+      const result = await query(
+        `UPDATE usuarios 
+         SET pin_hash = NULL, pin_created_at = NULL, biometric_enabled = false,
+             failed_pin_attempts = 0, pin_locked_until = NULL
+         WHERE id = $1 
+         RETURNING id, nombre, email, biometric_enabled`,
+        [this.id]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Usuario no encontrado para deshabilitar biométrico');
+      }
+
+      this.pin_hash = null;
+      this.pin_created_at = null;
+      this.biometric_enabled = false;
+      this.failed_pin_attempts = 0;
+      this.pin_locked_until = null;
+
+      console.log(`✅ Autenticación biométrica deshabilitada para: ${this.nombre} (${this.email})`);
+      return this;
+
+    } catch (error) {
+      console.error('Error deshabilitando biométrico:', error.message);
+      throw error;
+    }
+  }
+
   // Guardar usuario (crear nuevo)
   async guardar() {
-  try {
-    // Validar datos
-    const errores = this.validar();
-    if (errores.length > 0) {
-      throw new Error(`Errores de validación: ${errores.join(', ')}`);
+    try {
+      // Validar datos
+      const errores = this.validar();
+      if (errores.length > 0) {
+        throw new Error(`Errores de validación: ${errores.join(', ')}`);
+      }
+
+      // Verificar si ya existe el email
+      const usuarioExistente = await Usuario.obtenerPorEmail(this.email);
+      if (usuarioExistente) {
+        throw new Error('Ya existe un usuario registrado con ese email');
+      }
+
+      // Encriptar contraseña solo si existe
+      if (this.password) {
+        await this.encriptarPassword();
+      }
+
+      // Insertar en base de datos (incluye columnas biométricas)
+      const result = await query(
+        `INSERT INTO usuarios (nombre, email, password, rol, proveedor, 
+         biometric_enabled, failed_pin_attempts) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) 
+         RETURNING id, nombre, email, rol, fecha_creacion, proveedor, biometric_enabled`,
+        [this.nombre, this.email, this.password || null, this.rol, this.proveedor || null,
+         this.biometric_enabled, this.failed_pin_attempts]
+      );
+
+      // Actualizar objeto con datos devueltos
+      const usuarioGuardado = result.rows[0];
+      this.id = usuarioGuardado.id;
+      this.fecha_creacion = usuarioGuardado.fecha_creacion;
+      this.proveedor = usuarioGuardado.proveedor;
+      this.biometric_enabled = usuarioGuardado.biometric_enabled;
+
+      console.log(`✅ Usuario creado: ${this.nombre} (${this.email}) - Rol: ${this.rol}`);
+      return this;
+
+    } catch (error) {
+      console.error('Error al guardar usuario:', error.message);
+      throw error;
     }
-
-    // Verificar si ya existe el email
-    const usuarioExistente = await Usuario.obtenerPorEmail(this.email);
-    if (usuarioExistente) {
-      throw new Error('Ya existe un usuario registrado con ese email');
-    }
-
-    // Encriptar contraseña solo si existe
-    if (this.password) {
-      await this.encriptarPassword();
-    }
-
-    // Insertar en base de datos (agrega proveedor)
-    const result = await query(
-      `INSERT INTO usuarios (nombre, email, password, rol, proveedor) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, nombre, email, rol, fecha_creacion, proveedor`,
-      [this.nombre, this.email, this.password || null, this.rol, this.proveedor || null]
-    );
-
-    // Actualizar objeto con datos devueltos
-    const usuarioGuardado = result.rows[0];
-    this.id = usuarioGuardado.id;
-    this.fecha_creacion = usuarioGuardado.fecha_creacion;
-    this.proveedor = usuarioGuardado.proveedor;
-
-    console.log(`✅ Usuario creado: ${this.nombre} (${this.email}) - Rol: ${this.rol}`);
-    return this;
-
-  } catch (error) {
-    console.error('Error al guardar usuario:', error.message);
-    throw error;
   }
-}
 
   // Actualizar usuario existente
   async actualizar() {
@@ -474,7 +706,8 @@ class Usuario {
         SELECT 
           rol, 
           COUNT(*) as cantidad,
-          COUNT(CASE WHEN fecha_creacion >= NOW() - INTERVAL '30 days' THEN 1 END) as nuevos_ultimo_mes
+          COUNT(CASE WHEN fecha_creacion >= NOW() - INTERVAL '30 days' THEN 1 END) as nuevos_ultimo_mes,
+          COUNT(CASE WHEN biometric_enabled = true THEN 1 END) as con_biometrico
         FROM usuarios 
         GROUP BY rol 
         ORDER BY cantidad DESC
@@ -487,10 +720,44 @@ class Usuario {
     }
   }
 
+  // Obtener estadísticas biométricas
+  static async obtenerEstadisticasBiometricas() {
+    try {
+      const result = await query(`
+        SELECT 
+          COUNT(*) as total_usuarios,
+          COUNT(CASE WHEN biometric_enabled = true THEN 1 END) as biometrico_habilitado,
+          COUNT(CASE WHEN pin_hash IS NOT NULL THEN 1 END) as pin_configurado,
+          AVG(failed_pin_attempts) as intentos_promedio,
+          COUNT(CASE WHEN pin_locked_until > NOW() THEN 1 END) as bloqueados_temporalmente
+        FROM usuarios
+      `);
+      
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error al obtener estadísticas biométricas:', error);
+      throw new Error('Error al obtener estadísticas biométricas');
+    }
+  }
+
   // Sanitizar datos de salida (remover información sensible)
   toJSON() {
-    const { password, ...datosPublicos } = this;
+    const { password, pin_hash, ...datosPublicos } = this;
     return datosPublicos;
+  }
+
+  // Sanitizar datos biométricos para respuesta segura
+  toBiometricJSON() {
+    const { password, pin_hash, ...datosPublicos } = this;
+    // Incluir información biométrica pero sin el hash del PIN
+    return {
+      ...datosPublicos,
+      tienePIN: !!this.pin_hash,
+      biometricEnabled: this.biometric_enabled,
+      failedAttempts: this.failed_pin_attempts,
+      isLocked: this.estaPINBloqueado(),
+      lockedUntil: this.pin_locked_until
+    };
   }
 }
 

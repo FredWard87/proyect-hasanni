@@ -33,7 +33,13 @@ import {
   Stack,
   Fab,
   AppBar,
-  Toolbar
+  Toolbar,
+  Badge,
+  Menu,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,14 +54,19 @@ import {
   Email as EmailIcon,
   CalendarToday as CalendarIcon,
   Logout as LogoutIcon,
-  Lock as LockIcon
+  Lock as LockIcon,
+  Payment as PaymentIcon,
+  Notifications as NotificationsIcon,
+  Check as CheckIcon,
+  Security as SecurityIcon,
+  SystemUpdate as SystemUpdateIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import axios from 'axios';
 import Grid from '@mui/material/Grid';
 import { LocationOn } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -79,6 +90,248 @@ const PERMISOS = {
     editar: true,
     eliminar: true
   }
+};
+
+// Componente de campanita de notificaciones REAL
+const NotificationBell = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const open = Boolean(anchorEl);
+
+  // Cargar notificaciones REALES del backend
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.get(`${API_URL}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const notifs = response.data.notifications || [];
+        setNotifications(notifs);
+        setUnreadCount(notifs.filter(n => !n.leida).length);
+      }
+    } catch (error) {
+      console.error('Error cargando notificaciones:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(`${API_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif.id === notificationId ? { ...notif, leida: true } : notif
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marcando como leída:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(`${API_URL}/notifications/mark-all-read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev => prev.map(notif => ({ ...notif, leida: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marcando todas como leídas:', error);
+    }
+  };
+
+  const handleClick = async (event) => {
+    setAnchorEl(event.currentTarget);
+    await loadNotifications();
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleRefresh = async () => {
+    await loadNotifications();
+  };
+
+  const getNotificationIcon = (tipo) => {
+    switch (tipo) {
+      case 'seguridad':
+        return <SecurityIcon color="error" fontSize="small" />;
+      case 'admin':
+        return <AdminIcon color="primary" fontSize="small" />;
+      case 'sistema':
+        return <SystemUpdateIcon color="info" fontSize="small" />;
+      default:
+        return <NotificationsIcon color="action" fontSize="small" />;
+    }
+  };
+
+  const getPriorityColor = (prioridad) => {
+    switch (prioridad) {
+      case 'urgent':
+        return 'error';
+      case 'high':
+        return 'warning';
+      case 'normal':
+        return 'info';
+      case 'low':
+        return 'default';
+      default:
+        return 'default';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <>
+      <IconButton
+        color="inherit"
+        onClick={handleClick}
+        sx={{ position: 'relative' }}
+      >
+        <Badge badgeContent={unreadCount} color="error" max={99}>
+          <NotificationsIcon />
+        </Badge>
+      </IconButton>
+
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        PaperProps={{
+          sx: { width: 400, maxWidth: '90vw', maxHeight: '70vh', mt: 1 }
+        }}
+      >
+        <Box sx={{ p: 2, pb: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" fontWeight="bold">
+              Notificaciones
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton size="small" onClick={handleRefresh} disabled={loading}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+              {unreadCount > 0 && (
+                <Button 
+                  size="small" 
+                  onClick={markAllAsRead}
+                  startIcon={<CheckIcon />}
+                  disabled={loading}
+                >
+                  Marcar todas
+                </Button>
+              )}
+            </Box>
+          </Box>
+          <Divider />
+        </Box>
+
+        <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : notifications.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <NotificationsIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                No hay notificaciones
+              </Typography>
+            </Box>
+          ) : (
+            <List dense sx={{ py: 0 }}>
+              {notifications.map((notification) => (
+                <ListItem
+                  key={notification.id}
+                  sx={{
+                    bgcolor: notification.leida ? 'transparent' : 'action.hover',
+                    borderLeft: notification.leida ? 'none' : '4px solid',
+                    borderLeftColor: getPriorityColor(notification.prioridad) === 'error' ? 'error.main' : 'primary.main',
+                  }}
+                  secondaryAction={
+                    !notification.leida && (
+                      <IconButton 
+                        size="small" 
+                        onClick={() => markAsRead(notification.id)}
+                        title="Marcar como leída"
+                      >
+                        <CheckIcon fontSize="small" />
+                      </IconButton>
+                    )
+                  }
+                >
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    {getNotificationIcon(notification.tipo)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600 }}>
+                          {notification.titulo}
+                        </Typography>
+                        <Chip 
+                          label={notification.prioridad} 
+                          size="small" 
+                          color={getPriorityColor(notification.prioridad)}
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <Box component="div">
+                        <Typography variant="body2" component="div" color="text.primary" sx={{ mb: 0.5 }}>
+                          {notification.mensaje}
+                        </Typography>
+                        <Typography variant="caption" component="div" color="text.secondary">
+                          {formatDate(notification.fecha_creacion)}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
+
+        {notifications.length > 0 && (
+          <>
+            <Divider />
+            <Box sx={{ p: 1.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                {notifications.length} notificación(es) • {unreadCount} sin leer
+              </Typography>
+            </Box>
+          </>
+        )}
+      </Menu>
+    </>
+  );
 };
 
 const Usuarios = () => {
@@ -131,6 +384,11 @@ const Usuarios = () => {
   const tienePermiso = (accion) => {
     if (!user || !user.rol) return false;
     return PERMISOS[user.rol]?.[accion] || false;
+  };
+
+  // Función específica para verificar si es admin
+  const esAdministrador = () => {
+    return user && user.rol === 'admin';
   };
 
   // Obtener usuario autenticado desde el backend
@@ -192,7 +450,6 @@ const Usuarios = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Verificar permisos antes de enviar
     if (editandoUsuario && !tienePermiso('editar')) {
       mostrarMensaje('No tienes permisos para editar usuarios', 'error');
       return;
@@ -328,14 +585,23 @@ const Usuarios = () => {
     navigate('/');
   };
 
+  const irAPagos = () => {
+    navigate('/admin/pagos');
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
-      {/* AppBar superior con usuario autenticado y logout */}
+      {/* AppBar superior */}
       <AppBar position="static" color="primary" elevation={2}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Gestión de Usuarios
           </Typography>
+          
+          {/* CAMPANITA REAL */}
+          <NotificationBell />
+
+          
           {user && (
             <>
               <Chip
@@ -344,15 +610,8 @@ const Usuarios = () => {
                 sx={{ mr: 2, fontWeight: 600 }}
                 avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
               />
-              <Button
-                color="inherit"
-                startIcon={<LogoutIcon />}
-                onClick={handleLogout}
-                sx={{ fontWeight: 600 }}
-              >
-                Cerrar Sesión
-              </Button>
-              <Button
+              
+             <Button
   variant="outlined"
   startIcon={<LocationOn />}
   onClick={() => navigate('/locations')}
@@ -362,14 +621,25 @@ const Usuarios = () => {
     borderColor: 'rgba(255,255,255,0.5)',
     '&:hover': { 
       bgcolor: 'white',
-      borderColor: 'primary.main'
+      borderColor: 'primary.main',
+      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
     },
-    mr: 2 
+    '&:active': {
+      transform: 'translateY(1px)'
+    },
+    mr: 2,
+    fontWeight: 600,
+    borderRadius: 2,
+    px: 2,
+    py: 1,
+    transition: 'all 0.3s ease'
   }}
 >
   Mi Ubicación
 </Button>
- <Button
+
+{/* Botón para Tienda */}
+<Button
   variant="outlined"
   startIcon={<LocationOn />}
   onClick={() => navigate('/shop')}
@@ -379,19 +649,93 @@ const Usuarios = () => {
     borderColor: 'rgba(255,255,255,0.5)',
     '&:hover': { 
       bgcolor: 'white',
-      borderColor: 'primary.main'
+      borderColor: 'primary.main',
+      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
     },
-    mr: 2 
+    '&:active': {
+      transform: 'translateY(1px)'
+    },
+    mr: 2,
+    fontWeight: 600,
+    borderRadius: 2,
+    px: 2,
+    py: 1,
+    transition: 'all 0.3s ease'
   }}
 >
   Tienda
 </Button>
+
+{/* Botón para Preferencias de usuario */}
+<Button
+  variant="outlined"
+  onClick={() => navigate('/preferentuser')}
+  sx={{ 
+    bgcolor: 'rgba(255,255,255,0.9)',
+    color: 'primary.main',
+    borderColor: 'rgba(255,255,255,0.5)',
+    '&:hover': { 
+      bgcolor: 'white',
+      borderColor: 'primary.main',
+      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
+    },
+    '&:active': {
+      transform: 'translateY(1px)'
+    },
+    mr: 2,
+    fontWeight: 600,
+    borderRadius: 2,
+    px: 2,
+    py: 1,
+    transition: 'all 0.3s ease'
+  }}
+>
+  Preferencias de usuario
+</Button>
+
+{/* Botón para Administrar Pagos (solo admin) */}
+{esAdministrador() && (
+  <Button
+    variant="contained"
+    startIcon={<PaymentIcon />}
+    onClick={irAPagos}
+    sx={{ 
+      bgcolor: 'secondary.main',
+      color: 'white',
+      borderColor: 'secondary.main',
+      '&:hover': { 
+        bgcolor: 'secondary.dark',
+        borderColor: 'secondary.dark',
+        boxShadow: '0 4px 12px rgba(156, 39, 176, 0.4)'
+      },
+      '&:active': {
+        transform: 'translateY(1px)'
+      },
+      mr: 2,
+      fontWeight: 600,
+      borderRadius: 2,
+      px: 2,
+      py: 1,
+      transition: 'all 0.3s ease'
+    }}
+  >
+    Administrar Pagos
+  </Button>
+              )}
+              
+              <Button
+                color="inherit"
+                startIcon={<LogoutIcon />}
+                onClick={handleLogout}
+                sx={{ fontWeight: 600 }}
+              >
+                Cerrar Sesión
+              </Button>
             </>
           )}
         </Toolbar>
       </AppBar>
 
-      {/* Backdrop para loading general */}
       <Backdrop
         sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
         open={loading && usuarios.length === 0}
@@ -399,7 +743,7 @@ const Usuarios = () => {
         <CircularProgress color="inherit" />
       </Backdrop>
 
-      {/* Header con diseño moderno */}
+      {/* Header */}
       <Paper
         elevation={0}
         sx={{
@@ -424,6 +768,7 @@ const Usuarios = () => {
                 </Typography>
               </Box>
             </Box>
+
             {tienePermiso('crear') ? (
               <Button
                 variant="contained"
@@ -468,30 +813,22 @@ const Usuarios = () => {
       </Paper>
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        {/* Mensajes de error/éxito */}
+        {/* Mensajes */}
         <Collapse in={!!error}>
-          <Alert
-            severity="error"
-            onClose={() => setError(null)}
-            sx={{ mb: 3, borderRadius: 2 }}
-          >
+          <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3, borderRadius: 2 }}>
             <AlertTitle>Error</AlertTitle>
             {error}
           </Alert>
         </Collapse>
 
         <Collapse in={!!success}>
-          <Alert
-            severity="success"
-            onClose={() => setSuccess(null)}
-            sx={{ mb: 3, borderRadius: 2 }}
-          >
+          <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 3, borderRadius: 2 }}>
             <AlertTitle>Éxito</AlertTitle>
             {success}
           </Alert>
         </Collapse>
 
-        {/* Panel de permisos del usuario actual */}
+        {/* Panel de permisos */}
         {user && (
           <Card elevation={0} sx={{ mb: 3, borderRadius: 3, border: 1, borderColor: 'divider' }}>
             <CardContent>
@@ -523,6 +860,14 @@ const Usuarios = () => {
                   color={tienePermiso('eliminar') ? 'success' : 'default'}
                   variant={tienePermiso('eliminar') ? 'filled' : 'outlined'}
                 />
+                {esAdministrador() && (
+                  <Chip
+                    icon={<PaymentIcon />}
+                    label="Administrar Pagos"
+                    color="secondary"
+                    variant="filled"
+                  />
+                )}
               </Stack>
             </CardContent>
           </Card>

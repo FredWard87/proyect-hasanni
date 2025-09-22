@@ -1,5 +1,4 @@
 const express = require('express');
-
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
@@ -9,14 +8,21 @@ const authRoutes = require('./routes/authRoutes');
 const passport = require('./passport');
 const paymentsRoutes = require('./routes/paymentsRoutes');
 
-
-// Inicializar Passport
-
 // Importar configuración de base de datos
 const { testConnection } = require('./config/database');
 
 // Importar rutas
 const apiRoutes = require('./routes/UsuarioRoutes');
+const locationRoutes = require('./routes/locationRoutes');
+const preferencesRoutes = require('./routes/preferencesRoutes');
+const biometricRoutes = require('./routes/biometricRoutes');
+const notificationRoutes = require('./routes/notificationRoutes'); // ← NUEVO
+
+// Middleware de autenticación
+const authMiddleware = require('./middlewares/authMiddleware');
+
+// Servicio de notificaciones
+const notificationService = require('./services/notificationService'); // ← NUEVO
 
 // Crear aplicación Express
 const app = express();
@@ -41,7 +47,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/auth', authRoutes);
 app.use(passport.initialize());
 
-
 // Logging de requests
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
@@ -62,7 +67,8 @@ app.get('/', (req, res) => {
       usuarios: '/api/usuarios',
       roles: '/api/usuarios/roles',
       estadisticas: '/api/usuarios/estadisticas',
-      documentation: '/api-docs'
+      documentation: '/api-docs',
+      notifications: '/api/notifications' // ← NUEVO
     }
   });
 });
@@ -73,12 +79,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // Rutas API
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
-
-
+app.use('/api/usuarios', authMiddleware, locationRoutes);
+app.use('/api/preferencias', authMiddleware, preferencesRoutes);
+app.use('/api/biometric', authMiddleware, biometricRoutes);
+app.use('/api/notifications', authMiddleware, notificationRoutes); // ← NUEVO
 
 // === MANEJO DE ERRORES ===
 
-// Ruta 404 para API endpoints - USAR EXPRESIÓN REGULAR
+// Ruta 404 para API endpoints
 app.use(/^\/api\//, (req, res, next) => {
   if (!res.headersSent) {
     res.status(404).json({
@@ -93,7 +101,7 @@ app.use(/^\/api\//, (req, res, next) => {
   }
 });
 
-// Ruta 404 general - USAR EXPRESIÓN REGULAR
+// Ruta 404 general
 app.use(/.*/, (req, res) => {
   res.status(404).json({
     success: false,
@@ -129,8 +137,14 @@ const iniciarServidor = async () => {
     // Probar conexión a base de datos
     await testConnection();
     
+    // Iniciar servidor HTTP para Socket.IO
+    const server = require('http').createServer(app); // ← MODIFICADO
+    
+    // Inicializar servicio de notificaciones
+    notificationService.initialize(server); // ← NUEVO
+    
     // Iniciar servidor
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log('🚀 ===============================================');
       console.log('🚀 BACKEND API - Servidor iniciado exitosamente');
       console.log('🚀 ===============================================');
@@ -139,12 +153,15 @@ const iniciarServidor = async () => {
       console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
+      console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`); // ← NUEVO
       console.log(`🌍 CORS habilitado para: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log('🚀 ===============================================');
       console.log('');
       console.log('Para detener el servidor presiona Ctrl+C');
     });
+    
+    return server;
     
   } catch (error) {
     console.error('❌ Error al iniciar servidor:', error.message);

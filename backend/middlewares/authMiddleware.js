@@ -7,7 +7,10 @@ module.exports = (req, res, next) => {
     '/api/auth/login', 
     '/api/auth/register',
     '/api/auth/forgot-password',
-    '/api/auth/reset-password'
+    '/api/auth/reset-password',
+    '/api/pagos/productos',
+    '/api/auth/google',
+    '/api/auth/google/callback'
   ];
   
   if (publicRoutes.some(route => req.path.startsWith(route))) {

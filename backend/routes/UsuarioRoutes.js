@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router(); // ✅ CORRECTO - usar express.Router()
 const UsuarioController = require('../controllers/UsuarioController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+// Aplicar middleware de autenticación a todas las rutas
+router.use(authMiddleware); 
 
 // === RUTAS API ===
 
@@ -27,6 +31,8 @@ router.put('/usuarios/:id', UsuarioController.actualizarUsuario);
 
 // DELETE /api/usuarios/:id - Eliminar usuario
 router.delete('/usuarios/:id', UsuarioController.eliminarUsuario);
+
+router.post('/usuarios/ubicacion', UsuarioController.actualizarUbicacion);
 
 // Agregar al final de UsuarioRoutes.js, antes del module.exports
 const locationRoutes = require('./locationRoutes');
