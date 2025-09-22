@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: API de Gestión de Usuarios
-  version: 1.0.0
-  description: API RESTful para la gestión de usuarios con roles, permisos y autenticación
+  title: API de Gestión de Usuarios y Pagos
+  version: 2.0.0
+  description: API RESTful para la gestión de usuarios con roles, permisos, autenticación y sistema de pagos PayPal
   contact:
     name: Soporte API
     email: soporte@empresa.com
@@ -18,6 +18,10 @@ tags:
     description: Operaciones relacionadas con usuarios
   - name: Sistema
     description: Endpoints del sistema
+  - name: Pagos
+    description: Sistema de pagos y gestión de órdenes
+  - name: Administración
+    description: Endpoints exclusivos para administradores
 
 paths:
   /health:
@@ -40,8 +44,27 @@ paths:
                   message:
                     type: string
                     example: API funcionando correctamente
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: 2025-09-22T10:30:00.000Z
+                  endpoints:
+                    type: object
+                    properties:
+                      health:
+                        type: string
+                        example: /api/health
+                      usuarios:
+                        type: string
+                        example: /api/usuarios
+                      documentation:
+                        type: string
+                        example: /api-docs
 
-  # Endpoints de Autenticación
+  # =============================================
+  # ENDPOINTS DE AUTENTICACIÓN
+  # =============================================
+
   /auth/register:
     post:
       tags: [Autenticación]
@@ -73,24 +96,27 @@ paths:
                     example: false
                   message:
                     type: string
-                    enum:
-                      - Credenciales inválidas
-                      - Error de validación
-                      - JSON malformado
-                  error:
-                    type: string
-                    enum:
-                      - Email o contraseña incorrectos
-                      - El email es obligatorio y debe ser válido
-                      - La contraseña es obligatoria
-                      - Verifica la sintaxis del JSON enviado
-                      - Email y password son campos requeridos
+                    example: Error de validación
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - El email es obligatorio
+                      - La contraseña debe tener al menos 6 caracteres
         '409':
           description: Email ya registrado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: El email ya está registrado
 
   /auth/login:
     post:
@@ -106,7 +132,7 @@ paths:
               $ref: '#/components/schemas/LoginInput'
       responses:
         '200':
-          description: Login exitoso
+          description: Login exitoso - requiere verificación 2FA
           content:
             application/json:
               schema:
@@ -115,16 +141,14 @@ paths:
                   require2fa:
                     type: boolean
                     example: true
-                    description: Indica que se requiere verificación 2FA
                   userId:
                     type: integer
                     example: 14
-                    description: ID del usuario para usar en verificación OTP
                   message:
                     type: string
                     example: Código OTP enviado a tu email
-        '422':
-          description: Error de validación - Campos requeridos faltantes o malformados
+        '400':
+          description: Credenciales inválidas
           content:
             application/json:
               schema:
@@ -135,56 +159,33 @@ paths:
                     example: false
                   message:
                     type: string
-                    example: JSON malformado
-                  error:
+                    example: Credenciales inválidas
+        '422':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
                     type: string
-                    example: Verifica la sintaxis del JSON enviado
-                  details:
+                    example: Error de validación
+                  errors:
                     type: array
                     items:
                       type: string
                     example:
-                      - userId es obligatorio y no puede estar vacío
-                      - otp es obligatorio y no puede estar vacío
-                      - userId debe ser un número entero positivo
-                      - otp debe ser exactamente 6 dígitos numéricos
-        '400':
-          $ref: '#/components/responses/ValidationError'
+                      - El email es obligatorio
+                      - La contraseña es obligatoria
 
   /auth/2fa/verify:
     post:
       tags: [Autenticación]
       summary: Verificar código OTP
-      description: |
-        Verifica el código de autenticación de dos factores.
-        
-        **IMPORTANTE:** Ambos campos son obligatorios y no pueden estar vacíos:
-        - `userId`: Debe ser el ID numérico obtenido del endpoint login
-        - `otp`: Debe ser exactamente 6 dígitos numéricos
-        
-        **Tipos de error específicos:**
-        - **400**: Error de validación (formato incorrecto, campos vacíos)
-        - **401**: Token expirado (pasaron más de 5 minutos)
-        - **404**: Token incorrecto (código no coincide)
-        
-        **Formato JSON correcto:**
-        ```json
-        {
-          "userId": 14,
-          "otp": "181669"
-        }
-        ```
-        
-        **Errores comunes:**
-        - ❌ `"userId": ""` (vacío) → 400
-        - ❌ `"userId": null` (null) → 400
-        - ❌ `"userId": "14"` (string en lugar de number) → 400
-        - ❌ `"otp": ""` (vacío) → 400
-        - ❌ `"otp": 181669` (number en lugar de string) → 400
-        - ❌ `"otp": "18166"` (menos de 6 dígitos) → 400
-        - ❌ `"otp": "18166a"` (contiene letras) → 400
-        - ✅ Formato correcto pero expirado → 401
-        - ✅ Formato correcto pero código incorrecto → 404
+      description: Verifica el código de autenticación de dos factores
       security: []
       requestBody:
         required: true
@@ -200,7 +201,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '400':
-          description: Código OTP inválido o expirado
+          description: Código OTP inválido
           content:
             application/json:
               schema:
@@ -211,21 +212,9 @@ paths:
                     example: false
                   message:
                     type: string
-                    enum:
-                      - Código OTP incorrecto
-                      - Código OTP vencido
-                      - Error de validación
-                      - JSON malformado
-                  error:
-                    type: string
-                    enum:
-                      - El código OTP ingresado no es válido
-                      - El código OTP ha expirado. Solicite uno nuevo
-                      - El userId es obligatorio y debe ser un número entero positivo
-                      - El OTP es obligatorio y debe ser exactamente 6 dígitos numéricos
-                      - Verifica la sintaxis del JSON enviado
+                    example: Código OTP incorrecto
         '401':
-          description: Token OTP expirado específicamente
+          description: Token OTP expirado
           content:
             application/json:
               schema:
@@ -239,15 +228,9 @@ paths:
                     example: Token expirado
                   error:
                     type: string
-                    example: El código OTP ha expirado. El tiempo límite es de 5 minutos
-                  timeExpired:
-                    type: boolean
-                    example: true
-                  action:
-                    type: string
-                    example: Solicite un nuevo código OTP
+                    example: El código OTP ha expirado
         '404':
-          description: Token OTP incorrecto específicamente
+          description: Token OTP incorrecto
           content:
             application/json:
               schema:
@@ -259,78 +242,12 @@ paths:
                   message:
                     type: string
                     example: Token incorrecto
-                  error:
-                    type: string
-                    example: El código OTP ingresado no coincide con el generado
-                  invalidToken:
-                    type: boolean
-                    example: true
-                  action:
-                    type: string
-                    example: Verifique el código e intente nuevamente
-        '401':
-          description: No autorizado - Token JWT inválido o expirado
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - type: object
-                    properties:
-                      success:
-                        type: boolean
-                        example: false
-                      message:
-                        type: string
-                        example: Token expirado
-                      error:
-                        type: string
-                        example: El token JWT ha expirado. Inicie sesión nuevamente
-                      tokenExpired:
-                        type: boolean
-                        example: true
-                      action:
-                        type: string
-                        example: Inicie sesión para obtener un nuevo token
-                  - type: object
-                    properties:
-                      success:
-                        type: boolean
-                        example: false
-                      message:
-                        type: string
-                        example: Token inválido
-                      error:
-                        type: string
-                        example: El token JWT no es válido o está malformado
-                      invalidToken:
-                        type: boolean
-                        example: true
-                      action:
-                        type: string
-                        example: Verifique el token o inicie sesión nuevamente
-                  - type: object
-                    properties:
-                      success:
-                        type: boolean
-                        example: false
-                      message:
-                        type: string
-                        example: Token faltante
-                      error:
-                        type: string
-                        example: No se proporcionó token de autorización
-                      missingToken:
-                        type: boolean
-                        example: true
-                      action:
-                        type: string
-                        example: Incluya el token en el header Authorization Bearer
 
   /auth/2fa/resend:
     post:
       tags: [Autenticación]
       summary: Reenviar código OTP
-      description: Genera y envía un nuevo código OTP al usuario cuando el anterior ha expirado
+      description: Genera y envía un nuevo código OTP al usuario
       security: []
       requestBody:
         required: true
@@ -343,13 +260,10 @@ paths:
               properties:
                 userId:
                   type: integer
-                  minimum: 1
-                  maximum: 2147483647
                   example: 14
-                  description: ID del usuario que necesita un nuevo código OTP (entero positivo)
       responses:
         '200':
-          description: Nuevo código OTP enviado exitosamente
+          description: Nuevo código OTP enviado
           content:
             application/json:
               schema:
@@ -361,9 +275,6 @@ paths:
                   message:
                     type: string
                     example: Nuevo código OTP enviado exitosamente
-                  expiresIn:
-                    type: string
-                    example: 5 minutos
         '404':
           description: Usuario no encontrado
           content:
@@ -377,19 +288,6 @@ paths:
                   message:
                     type: string
                     example: Usuario no encontrado
-        '429':
-          description: Demasiadas solicitudes
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  message:
-                    type: string
-                    example: Demasiadas solicitudes. Intente nuevamente en unos minutos
 
   /auth/forgot-password:
     post:
@@ -418,9 +316,18 @@ paths:
                     type: string
                     example: Email de recuperación enviado exitosamente
         '404':
-          $ref: '#/components/responses/NotFound'
-        '400':
-          $ref: '#/components/responses/ValidationError'
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Usuario no encontrado
 
   /auth/reset-password:
     post:
@@ -449,7 +356,7 @@ paths:
                     type: string
                     example: Contraseña restablecida exitosamente
         '400':
-          description: Token inválido o expirado
+          description: Token inválido
           content:
             application/json:
               schema:
@@ -460,17 +367,9 @@ paths:
                     example: false
                   message:
                     type: string
-                    enum:
-                      - Token inválido
-                      - Error de validación
-                  error:
-                    type: string
-                    enum:
-                      - El token de recuperación no es válido
-                      - El token es obligatorio
-                      - La nueva contraseña no cumple los requisitos
+                    example: Token inválido
         '401':
-          description: Token de recuperación expirado
+          description: Token expirado
           content:
             application/json:
               schema:
@@ -482,48 +381,12 @@ paths:
                   message:
                     type: string
                     example: Token expirado
-                  error:
-                    type: string
-                    example: El enlace de recuperación ha expirado. El tiempo límite es de 15 minutos
-                  timeExpired:
-                    type: boolean
-                    example: true
-                  expirationTime:
-                    type: string
-                    example: 15 minutos
-                  action:
-                    type: string
-                    example: Solicite un nuevo enlace de recuperación
-        '404':
-          description: Token de recuperación no encontrado
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  message:
-                    type: string
-                    example: Token no encontrado
-                  error:
-                    type: string
-                    example: El token de recuperación no existe o ya fue utilizado
-                  tokenNotFound:
-                    type: boolean
-                    example: true
-                  action:
-                    type: string
-                    example: Verifique el enlace o solicite uno nuevo
 
   /auth/validate-token:
     post:
       tags: [Autenticación]
-      summary: Validar token JWT específicamente
-      description: |
-        Valida un token JWT y devuelve información específica sobre su estado.
-        Útil para debugging y manejo granular de errores de token.
+      summary: Validar token JWT
+      description: Valida un token JWT y devuelve información sobre su estado
       requestBody:
         required: true
         content:
@@ -535,9 +398,7 @@ paths:
               properties:
                 token:
                   type: string
-                  minLength: 10
                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                  description: Token JWT a validar
       responses:
         '200':
           description: Token válido
@@ -552,12 +413,6 @@ paths:
                   message:
                     type: string
                     example: Token válido
-                  tokenStatus:
-                    type: string
-                    example: valid
-                  expiresIn:
-                    type: string
-                    example: 2 horas
         '400':
           description: Token malformado
           content:
@@ -571,12 +426,6 @@ paths:
                   message:
                     type: string
                     example: Token malformado
-                  error:
-                    type: string
-                    example: El formato del token JWT no es válido
-                  tokenStatus:
-                    type: string
-                    example: malformed
         '401':
           description: Token expirado
           content:
@@ -590,34 +439,6 @@ paths:
                   message:
                     type: string
                     example: Token expirado
-                  error:
-                    type: string
-                    example: El token JWT ha expirado hace 30 minutos
-                  tokenStatus:
-                    type: string
-                    example: expired
-                  expiredSince:
-                    type: string
-                    example: 30 minutos
-        '404':
-          description: Token inválido
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  message:
-                    type: string
-                    example: Token inválido
-                  error:
-                    type: string
-                    example: La firma del token no es válida
-                  tokenStatus:
-                    type: string
-                    example: invalid
 
   /auth/me:
     get:
@@ -638,7 +459,18 @@ paths:
                   data:
                     $ref: '#/components/schemas/Usuario'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: No autorizado
 
   /auth/google:
     get:
@@ -661,12 +493,10 @@ paths:
       parameters:
         - name: code
           in: query
-          description: Código de autorización de Google
           schema:
             type: string
         - name: state
           in: query
-          description: Estado de la petición OAuth
           schema:
             type: string
       responses:
@@ -675,7 +505,10 @@ paths:
         '401':
           description: Error en autenticación con Google
 
-  # Endpoints de Usuarios (existentes)
+  # =============================================
+  # ENDPOINTS DE USUARIOS
+  # =============================================
+
   /usuarios:
     get:
       tags: [Usuarios]
@@ -700,7 +533,7 @@ paths:
                     type: integer
                     example: 3
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
     post:
       tags: [Usuarios]
@@ -720,9 +553,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Usuario'
         '400':
-          $ref: '#/components/responses/ValidationError'
+          description: Error de validación
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
   /usuarios/{id}:
     get:
@@ -735,9 +568,6 @@ paths:
           required: true
           schema:
             type: integer
-            minimum: 1
-            maximum: 2147483647
-          description: ID del usuario (entero positivo)
       responses:
         '200':
           description: Usuario encontrado
@@ -746,9 +576,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Usuario'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Usuario no encontrado
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
     put:
       tags: [Usuarios]
@@ -760,7 +590,6 @@ paths:
           required: true
           schema:
             type: integer
-          description: ID del usuario
       requestBody:
         required: true
         content:
@@ -775,23 +604,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Usuario'
         '400':
-          $ref: '#/components/responses/ValidationError'
+          description: Error de validación
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Usuario no encontrado
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
     delete:
       tags: [Usuarios]
       summary: Eliminar usuario
-      description: Elimina un usuario del sistema (eliminación lógica)
+      description: Elimina un usuario del sistema
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
-          description: ID del usuario
       responses:
         '200':
           description: Usuario eliminado exitosamente
@@ -807,9 +635,9 @@ paths:
                     type: string
                     example: Usuario eliminado correctamente
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Usuario no encontrado
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
   /usuarios/roles:
     get:
@@ -833,7 +661,7 @@ paths:
                       type: string
                     example: [administrador, editor, usuario]
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
 
   /usuarios/estadisticas:
     get:
@@ -870,79 +698,529 @@ paths:
                           editor: 5
                           usuario: 8
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: No autorizado
+
+  /usuarios/ubicacion:
+    post:
+      tags: [Usuarios]
+      summary: Actualizar ubicación del usuario
+      description: Actualiza la ubicación geográfica del usuario actual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - latitude
+                - longitude
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                  example: 19.432608
+                longitude:
+                  type: number
+                  format: float
+                  example: -99.133209
+      responses:
+        '200':
+          description: Ubicación actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Ubicación actualizada correctamente
+        '400':
+          description: Coordenadas inválidas
+        '401':
+          description: No autorizado
+
+  /usuarios/cercanos:
+    get:
+      tags: [Usuarios]
+      summary: Obtener usuarios cercanos
+      description: Retorna usuarios dentro de un radio de 10km de la ubicación actual
+      parameters:
+        - name: radius
+          in: query
+          schema:
+            type: number
+            format: float
+            default: 10
+          description: Radio en kilómetros (opcional, default 10km)
+      responses:
+        '200':
+          description: Usuarios cercanos obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Usuario'
+                  total:
+                    type: integer
+                    example: 5
+        '401':
+          description: No autorizado
+
+  # =============================================
+  # ENDPOINTS DE PAGOS
+  # =============================================
+
+  /pagos/productos:
+    get:
+      tags: [Pagos]
+      summary: Obtener productos disponibles
+      description: Retorna una lista de todos los productos activos disponibles para compra
+      responses:
+        '200':
+          description: Lista de productos obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Producto'
+        '500':
+          description: Error interno del servidor
+
+  /pagos/crear-orden:
+    post:
+      tags: [Pagos]
+      summary: Crear nueva orden de PayPal
+      description: Crea una nueva orden de compra y genera un enlace de pago de PayPal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearOrdenInput'
+      responses:
+        '200':
+          description: Orden creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: integer
+                        example: 1
+                      paypalOrderId:
+                        type: string
+                        example: "5O190127TN364715T"
+                      approvalUrl:
+                        type: string
+                        example: "https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T"
+                      total:
+                        type: number
+                        format: float
+                        example: 279.97
+        '400':
+          description: Error en los datos de la orden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Items son requeridos
+        '500':
+          description: Error interno del servidor
+
+  /pagos/callback-paypal:
+    post:
+      tags: [Pagos]
+      summary: Callback de PayPal
+      description: Endpoint llamado cuando PayPal redirige después del pago
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - paypalOrderId
+              properties:
+                paypalOrderId:
+                  type: string
+                  example: "5O190127TN364715T"
+      responses:
+        '200':
+          description: Callback procesado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Orden recibida, será procesada por un administrador
+                  orderId:
+                    type: integer
+                    example: 1
+        '400':
+          description: PayPal Order ID faltante
+        '404':
+          description: Orden no encontrada
+        '500':
+          description: Error interno del servidor
+
+  /pagos/ordenes:
+    get:
+      tags: [Pagos]
+      summary: Obtener órdenes del usuario
+      description: Retorna el historial de órdenes del usuario autenticado
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Límite de resultados por página
+      responses:
+        '200':
+          description: Historial de órdenes obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Orden'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 10
+                      total:
+                        type: integer
+                        example: 15
+                      pages:
+                        type: integer
+                        example: 2
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /pagos/ordenes/{orderId}:
+    get:
+      tags: [Pagos]
+      summary: Obtener detalles de una orden específica
+      description: Retorna los detalles completos de una orden específica del usuario
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Detalles de la orden obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Orden'
+        '404':
+          description: Orden no encontrada
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  # =============================================
+  # ENDPOINTS DE ADMINISTRACIÓN
+  # =============================================
+
+  /pagos/admin/ordenes-pendientes:
+    get:
+      tags: [Administración, Pagos]
+      summary: Obtener órdenes pendientes (Admin)
+      description: Retorna todas las órdenes pendientes de procesamiento (solo administradores)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Límite de resultados por página
+      responses:
+        '200':
+          description: Órdenes pendientes obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrdenCompleta'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 5
+                      pages:
+                        type: integer
+                        example: 1
+        '401':
+          description: No autorizado
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+        '500':
+          description: Error interno del servidor
+
+  /pagos/admin/verificar-orden:
+    post:
+      tags: [Administración, Pagos]
+      summary: Verificar orden en PayPal (Admin)
+      description: Verifica el estado actual de una orden en PayPal (solo administradores)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - paypalOrderId
+              properties:
+                paypalOrderId:
+                  type: string
+                  example: "5O190127TN364715T"
+      responses:
+        '200':
+          description: Estado de la orden verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "APPROVED"
+                      paypalOrderId:
+                        type: string
+                        example: "5O190127TN364715T"
+                      amount:
+                        type: string
+                        example: "279.97"
+                      createTime:
+                        type: string
+                        format: date-time
+                        example: "2025-09-22T10:30:00Z"
+                      updateTime:
+                        type: string
+                        format: date-time
+                        example: "2025-09-22T10:35:00Z"
+        '400':
+          description: Error al verificar la orden
+        '401':
+          description: No autorizado
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+        '500':
+          description: Error interno del servidor
+
+  /pagos/admin/capturar-orden/{orderId}:
+    post:
+      tags: [Administración, Pagos]
+      summary: Capturar pago de PayPal (Admin)
+      description: Captura manualmente un pago de PayPal para una orden pendiente (solo administradores)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Pago capturado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pago procesado correctamente
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: integer
+                        example: 1
+                      transactionId:
+                        type: string
+                        example: "3C679123HH456789A"
+                      status:
+                        type: string
+                        example: "completed"
+                      amount:
+                        type: number
+                        format: float
+                        example: 279.97
+        '400':
+          description: Error al capturar el pago
+        '404':
+          description: Orden no encontrada
+        '401':
+          description: No autorizado
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+        '500':
+          description: Error interno del servidor
+
+  /pagos/admin/aprobar-manual/{orderId}:
+    post:
+      tags: [Administración, Pagos]
+      summary: Aprobar orden manualmente (Admin)
+      description: Aprueba manualmente una orden sin usar PayPal (solo administradores)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  example: "Pago recibido en efectivo"
+      responses:
+        '200':
+          description: Orden aprobada manualmente exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Orden aprobada manualmente
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: integer
+                        example: 1
+                      status:
+                        type: string
+                        example: "completed"
+                      amount:
+                        type: number
+                        format: float
+                        example: 279.97
+        '400':
+          description: Error al aprobar la orden
+        '404':
+          description: Orden no encontrada
+        '401':
+          description: No autorizado
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+        '500':
+          description: Error interno del servidor
 
 components:
   schemas:
-    Usuario:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 1
-        nombre:
-          type: string
-          example: Juan Pérez
-        email:
-          type: string
-          format: email
-          example: juan.perez@email.com
-        password:
-          type: string
-          example: hashed_password
-        rol:
-          type: string
-          example: administrador
-        fecha_creacion:
-          type: string
-          format: date-time
-          example: 2024-01-15T10:30:00.000Z
-        activo:
-          type: boolean
-          example: true
-
-    UsuarioInput:
-      type: object
-      required:
-        - nombre
-        - email
-        - password
-        - rol
-      properties:
-        nombre:
-          type: string
-          minLength: 2
-          maxLength: 50
-          pattern: "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$"
-          example: Juan Pérez
-          description: Solo letras y espacios, 2-50 caracteres
-        email:
-          type: string
-          format: email
-          minLength: 5
-          maxLength: 100
-          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-          example: juan.perez@email.com
-          description: Email único válido
-        password:
-          type: string
-          minLength: 6
-          maxLength: 100
-          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
-          example: Password123
-          description: Mín 6 chars, 1 mayúscula, 1 minúscula, 1 número
-        rol:
-          type: string
-          enum: [usuario, editor, administrador]
-          example: administrador
-          description: Rol válido del usuario
-        activo:
-          type: boolean
-          default: true
-          example: true
-          description: Estado del usuario (true/false)
-
-    # Schemas para Autenticación
+    # Schemas de Autenticación
     RegisterInput:
       type: object
       required:
@@ -952,32 +1230,17 @@ components:
       properties:
         nombre:
           type: string
-          minLength: 2
-          maxLength: 50
-          pattern: "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$"
           example: Juan Pérez
-          description: Solo letras y espacios, 2-50 caracteres
         email:
           type: string
           format: email
-          minLength: 5
-          maxLength: 100
-          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           example: juan.perez@email.com
-          description: Email válido con formato correcto
         password:
           type: string
-          minLength: 6
-          maxLength: 100
-          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
           example: Password123
-          description: Mínimo 6 caracteres, al menos 1 mayúscula, 1 minúscula y 1 número
         rol:
           type: string
-          enum: [usuario, editor, administrador]
-          default: usuario
           example: usuario
-          description: Rol del usuario (usuario, editor, administrador)
 
     LoginInput:
       type: object
@@ -988,20 +1251,10 @@ components:
         email:
           type: string
           format: email
-          minLength: 5
-          maxLength: 100
-          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           example: juan.perez@email.com
-          description: Email válido registrado en el sistema
-          nullable: false
         password:
           type: string
-          minLength: 1
-          maxLength: 100
           example: password123
-          description: Contraseña del usuario
-          nullable: false
-      additionalProperties: false
 
     OTPVerifyInput:
       type: object
@@ -1011,20 +1264,10 @@ components:
       properties:
         userId:
           type: integer
-          minimum: 1
-          maximum: 2147483647
           example: 14
-          description: ID del usuario obtenido del endpoint de login (debe ser un entero positivo)
-          nullable: false
         otp:
           type: string
-          minLength: 6
-          maxLength: 6
-          pattern: "^[0-9]{6}$"
           example: "181669"
-          description: Código OTP de exactamente 6 dígitos numéricos
-          nullable: false
-      additionalProperties: false
 
     ForgotPasswordInput:
       type: object
@@ -1034,11 +1277,7 @@ components:
         email:
           type: string
           format: email
-          minLength: 5
-          maxLength: 100
-          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           example: juan.perez@email.com
-          description: Email válido registrado en el sistema
 
     ResetPasswordInput:
       type: object
@@ -1048,18 +1287,10 @@ components:
       properties:
         token:
           type: string
-          minLength: 32
-          maxLength: 500
-          pattern: "^[a-zA-Z0-9._-]+$"
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-          description: Token JWT o hex de recuperación (32+ caracteres alfanuméricos)
         password:
           type: string
-          minLength: 6
-          maxLength: 100
-          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d@$!%*?&]{6,}$"
           example: NuevaPassword123
-          description: Nueva contraseña - mín 6 chars, 1 mayúscula, 1 minúscula, 1 número
 
     AuthResponse:
       type: object
@@ -1088,104 +1319,150 @@ components:
             rol:
               type: string
               example: usuario
-        require2fa:
-          type: boolean
-          example: false
-          description: Indica si se requiere verificación 2FA
-        userId:
-          type: integer
-          example: 14
-          description: ID del usuario para usar en la verificación 2FA
 
-    ErrorResponse:
+    # Schemas de Usuarios
+    Usuario:
       type: object
       properties:
-        success:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Juan Pérez
+        email:
+          type: string
+          format: email
+          example: juan.perez@email.com
+        rol:
+          type: string
+          example: administrador
+        fecha_creacion:
+          type: string
+          format: date-time
+          example: 2024-01-15T10:30:00.000Z
+        current_latitude:
+          type: number
+          format: float
+          example: 19.432608
+        current_longitude:
+          type: number
+          format: float
+          example: -99.133209
+
+    UsuarioInput:
+      type: object
+      required:
+        - nombre
+        - email
+        - password
+        - rol
+      properties:
+        nombre:
+          type: string
+          example: Juan Pérez
+        email:
+          type: string
+          format: email
+          example: juan.perez@email.com
+        password:
+          type: string
+          example: Password123
+        rol:
+          type: string
+          example: administrador
+        activo:
           type: boolean
-          example: false
-        message:
+          example: true
+
+    # Schemas de Pagos
+    Producto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
           type: string
-          example: Error en la operación
-        error:
+          example: "Laptop Gaming"
+        descripcion:
           type: string
-          example: Mensaje de error detallado
+          example: "Laptop para gaming de alta gama"
+        precio:
+          type: number
+          format: float
+          example: 999.99
+        categoria:
+          type: string
+          example: "Tecnología"
+        stock:
+          type: integer
+          example: 10
+        imagen_url:
+          type: string
+          example: "https://example.com/images/laptop.jpg"
+        activo:
+          type: boolean
+          example: true
 
-  responses:
-    Error:
-      description: Error en la solicitud
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
-    NotFound:
-      description: Recurso no encontrado
-      content:
-        application/json:
-          schema:
+    Orden:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 14
+        total:
+          type: number
+          format: float
+          example: 279.97
+        estado:
+          type: string
+          enum: [pending, completed, cancelled, refunded, failed]
+          example: "pending"
+        items:
+          type: array
+          items:
             type: object
             properties:
-              success:
-                type: boolean
-                example: false
-              message:
-                type: string
-                example: Recurso no encontrado
-              error:
-                type: string
-                example: El usuario con ID 10 no existe
+              productId:
+                type: integer
+                example: 1
+              quantity:
+                type: integer
+                example: 2
+        paypal_order_id:
+          type: string
+          example: "5O190127TN364715T"
+        paypal_capture_id:
+          type: string
+          example: "3C679123HH456789A"
+        fecha_creacion:
+          type: string
+          format: date-time
+          example: "2025-09-22T10:30:00Z"
+        fecha_completado:
+          type: string
+          format: date-time
+          example: "2025-09-22T10:35:00Z"
 
-    Unauthorized:
-      description: No autorizado
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: false
-              message:
-                type: string
-                example: No autorizado
-              error:
-                type: string
-                example: Token inválido o expirado
+    OrdenCompleta:
+      allOf:
+        - $ref: '#/components/schemas/Orden'
+        - type: object
+          properties:
+            user_name:
+              type: string
+              example: "Juan Pérez"
+            user_email:
+              type: string
+              format: email
+              example: "juan.perez@email.com"
+            transaction_status:
+              type: string
+              example: "completed"
 
-    ValidationError:
-      description: Error de validación
-      content:
-        application/json:
-          schema:
-            type: object
-            required:
-              - success
-              - message
-            properties:
-              success:
-                type: boolean
-                example: false
-              message:
-                type: string
-                example: Error de validación
-              errors:
-                type: array
-                items:
-                  type: string
-                  minLength: 1
-                example: 
-                  - El email es obligatorio y debe ser válido
-                  - La contraseña debe tener al menos 6 caracteres
-                  - El nombre solo puede contener letras y espacios
-                  - El OTP debe ser exactamente 6 dígitos numéricos
-                  - El userId debe ser un número entero positivo
-
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Token JWT obtenido del endpoint /auth/login
-
-security:
-  - BearerAuth: []
+    CrearOrdenInput:
+      type: object

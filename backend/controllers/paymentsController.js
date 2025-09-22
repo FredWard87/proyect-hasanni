@@ -53,6 +53,7 @@ exports.getProducts = async (req, res) => {
 };
 
 // Crear orden de PayPal (SOLO CREA LA ORDEN, NO CAPTURA)
+// Crear orden de PayPal (SOLO CREA LA ORDEN, NO CAPTURA)
 exports.createPayPalOrder = async (req, res) => {
   try {
     const { items, total } = req.body;
@@ -112,10 +113,11 @@ exports.createPayPalOrder = async (req, res) => {
       });
     }
 
-    // Crear orden en base de datos con estado 'pending_payment'
+    // CAMBIO IMPORTANTE: Usar 'pending' en lugar de 'pending_payment'
+    // Crear orden en base de datos con estado 'pending'
     const orderResult = await query(`
       INSERT INTO ordenes (user_id, total, estado, items)
-      VALUES ($1, $2, 'pending_payment', $3)
+      VALUES ($1, $2, 'pending', $3)
       RETURNING id, total, estado, fecha_creacion
     `, [userId, calculatedTotal, JSON.stringify(items)]);
 
@@ -363,6 +365,7 @@ exports.capturePayPalOrderManual = async (req, res) => {
 };
 
 // Nueva función: Obtener todas las órdenes pendientes (para admin)
+// Nueva función: Obtener todas las órdenes pendientes (para admin)
 exports.getAllPendingOrders = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
@@ -378,14 +381,14 @@ exports.getAllPendingOrders = async (req, res) => {
       FROM ordenes o
       LEFT JOIN usuarios u ON o.user_id = u.id
       LEFT JOIN transacciones t ON o.id = t.orden_id
-      WHERE o.estado IN ('pending_payment', 'pending')
+      WHERE o.estado = 'pending'  -- CAMBIADO: Solo 'pending'
       ORDER BY o.fecha_creacion DESC
       LIMIT $1 OFFSET $2
     `, [parseInt(limit), offset]);
 
     const countResult = await query(
-      'SELECT COUNT(*) FROM ordenes WHERE estado IN ($1, $2)',
-      ['pending_payment', 'pending']
+      'SELECT COUNT(*) FROM ordenes WHERE estado = $1',
+      ['pending']  // CAMBIADO: Solo 'pending'
     );
 
     res.json({
@@ -471,6 +474,7 @@ exports.approveOrderManual = async (req, res) => {
 };
 
 // Función simplificada para cuando PayPal redirige (solo marca como pendiente)
+// Función simplificada para cuando PayPal redirige (solo marca como pendiente)
 exports.handlePayPalCallback = async (req, res) => {
   try {
     const { paypalOrderId } = req.body;
@@ -482,15 +486,24 @@ exports.handlePayPalCallback = async (req, res) => {
       });
     }
 
-    // Simplemente actualizar el estado a 'pending' para que el admin lo vea
-    await query(
-      'UPDATE ordenes SET estado = $1 WHERE paypal_order_id = $2',
-      ['pending', paypalOrderId]
+    // CAMBIO: Ya está como 'pending', no necesitamos cambiarlo
+    // Solo verificar que la orden existe
+    const orderResult = await query(
+      'SELECT id FROM ordenes WHERE paypal_order_id = $1',
+      [paypalOrderId]
     );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Orden no encontrada'
+      });
+    }
 
     res.json({
       success: true,
-      message: 'Orden recibida, será procesada por un administrador'
+      message: 'Orden recibida, será procesada por un administrador',
+      orderId: orderResult.rows[0].id
     });
 
   } catch (error) {
