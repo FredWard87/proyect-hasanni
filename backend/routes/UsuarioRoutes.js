@@ -28,4 +28,8 @@ router.put('/usuarios/:id', UsuarioController.actualizarUsuario);
 // DELETE /api/usuarios/:id - Eliminar usuario
 router.delete('/usuarios/:id', UsuarioController.eliminarUsuario);
 
+// Agregar al final de UsuarioRoutes.js, antes del module.exports
+const locationRoutes = require('./locationRoutes');
+router.use('/', locationRoutes);
+
 module.exports = router;

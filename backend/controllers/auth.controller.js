@@ -161,6 +161,44 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
+// Verificar token
+exports.verifyToken = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token no proporcionado'
+      });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Verificar si el usuario aún existe
+    const userResult = await query(
+      'SELECT id, nombre, email FROM usuarios WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: userResult.rows[0]
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: 'Token inválido o expirado'
+    });
+  }
+};
 // Resetear contraseña
 exports.resetPassword = async (req, res) => {
   try {

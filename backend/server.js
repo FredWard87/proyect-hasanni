@@ -7,6 +7,8 @@ const path = require('path');
 require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const passport = require('./passport');
+const paymentsRoutes = require('./routes/paymentsRoutes');
+
 
 // Inicializar Passport
 
@@ -70,6 +72,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Rutas API
 app.use('/api', apiRoutes);
+app.use('/api/pagos', paymentsRoutes);
+
+
 
 // === MANEJO DE ERRORES ===
 

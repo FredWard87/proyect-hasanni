@@ -14,6 +14,7 @@ router.get('/me', authMiddleware, authController.me);
 
 // Google OAuth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/verify-token', authController.verifyToken);
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/?error=google' }),
