@@ -22,6 +22,12 @@ tags:
     description: Sistema de pagos y gestión de órdenes
   - name: Administración
     description: Endpoints exclusivos para administradores
+  - name: Preferencias
+    description: Gestión de preferencias de usuario
+  - name: Geolocalización
+    description: Gestión de ubicación de usuarios
+  - name: Biometría
+    description: Autenticación biométrica con PIN
 
 paths:
   /health:
@@ -180,6 +186,171 @@ paths:
                     example:
                       - El email es obligatorio
                       - La contraseña es obligatoria
+  # Añadir estas rutas a la sección de paths en swagger.yaml
+
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cerrar sesión
+      description: Cierra la sesión actual del usuario y elimina la sesión activa
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Sesión cerrada exitosamente
+        '401':
+          description: No autorizado
+
+  /auth/session/check:
+    get:
+      tags: [Autenticación]
+      summary: Verificar estado de sesión
+      description: Verifica si el usuario tiene una sesión activa y su tiempo restante
+      responses:
+        '200':
+          description: Estado de sesión obtenido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  sessionActive:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: integer
+                        example: 1
+                      createdAt:
+                        type: string
+                        format: date-time
+                      lastActivity:
+                        type: string
+                        format: date-time
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      expiresIn:
+                        type: integer
+                        example: 55
+                      timeLeft:
+                        type: integer
+                        example: 3300000
+        '401':
+          description: No autorizado
+
+  /auth/session/force-logout:
+    post:
+      tags: [Autenticación, Administración]
+      summary: Forzar cierre de sesión (Admin)
+      description: Fuerza el cierre de sesión de un usuario específico (solo administradores)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: integer
+                  example: 1
+      responses:
+        '200':
+          description: Sesión forzada cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Sesión forzada cerrada para usuario@email.com
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: integer
+                        example: 1
+                      email:
+                        type: string
+                        example: usuario@email.com
+                      sessionRemoved:
+                        type: boolean
+                        example: true
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+        '404':
+          description: Usuario no encontrado
+
+  /auth/session/stats:
+    get:
+      tags: [Autenticación, Administración]
+      summary: Obtener estadísticas de sesiones (Admin)
+      description: Retorna estadísticas de todas las sesiones activas (solo administradores)
+      responses:
+        '200':
+          description: Estadísticas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      totalSessions:
+                        type: integer
+                        example: 10
+                      activeSessions:
+                        type: integer
+                        example: 5
+                      sessions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            userId:
+                              type: integer
+                              example: 1
+                            createdAt:
+                              type: string
+                              format: date-time
+                            lastActivity:
+                              type: string
+                              format: date-time
+                            expiresAt:
+                              type: string
+                              format: date-time
+                            expiresIn:
+                              type: integer
+                              example: 55
+                      lastUpdated:
+                        type: string
+                        format: date-time
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
 
   /auth/2fa/verify:
     post:
@@ -700,48 +871,6 @@ paths:
         '401':
           description: No autorizado
 
-  /usuarios/ubicacion:
-    post:
-      tags: [Usuarios]
-      summary: Actualizar ubicación del usuario
-      description: Actualiza la ubicación geográfica del usuario actual
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - latitude
-                - longitude
-              properties:
-                latitude:
-                  type: number
-                  format: float
-                  example: 19.432608
-                longitude:
-                  type: number
-                  format: float
-                  example: -99.133209
-      responses:
-        '200':
-          description: Ubicación actualizada exitosamente
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  message:
-                    type: string
-                    example: Ubicación actualizada correctamente
-        '400':
-          description: Coordenadas inválidas
-        '401':
-          description: No autorizado
-
   /usuarios/cercanos:
     get:
       tags: [Usuarios]
@@ -1218,6 +1347,715 @@ paths:
         '500':
           description: Error interno del servidor
 
+  # =============================================
+  # ENDPOINTS DE PREFERENCIAS
+  # =============================================
+
+  /usuarios/preferencias:
+    get:
+      tags: [Preferencias]
+      summary: Obtener preferencias del usuario
+      description: Retorna las preferencias del usuario autenticado
+      responses:
+        '200':
+          description: Preferencias obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PreferenciasUsuario'
+        '401':
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Preferencias]
+      summary: Actualizar todas las preferencias del usuario
+      description: Actualiza completamente las preferencias del usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferenciasInput'
+      responses:
+        '200':
+          description: Preferencias actualizadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PreferenciasUsuario'
+                  message:
+                    type: string
+                    example: Preferencias actualizadas exitosamente
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ValidationError'
+        '401':
+          description: No autorizado
+
+  /usuarios/preferencias/reset:
+    post:
+      tags: [Preferencias]
+      summary: Restablecer preferencias por defecto
+      description: Restablece todas las preferencias del usuario a los valores por defecto
+      responses:
+        '200':
+          description: Preferencias restablecidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PreferenciasUsuario'
+                  message:
+                    type: string
+                    example: Preferencias restablecidas a valores por defecto
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /usuarios/preferencias/specific:
+    put:
+      tags: [Preferencias]
+      summary: Actualizar preferencia específica
+      description: Actualiza una preferencia específica del usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferenciasEspecificas'
+      responses:
+        '200':
+          description: Preferencia actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PreferenciasUsuario'
+                  message:
+                    type: string
+                    example: Preferencia actualizada exitosamente
+        '400':
+          description: Error de validación
+        '401':
+          description: No autorizado
+
+  /usuarios/preferencias/export:
+    get:
+      tags: [Preferencias]
+      summary: Exportar preferencias del usuario
+      description: Exporta las preferencias del usuario en formato JSON para backup
+      responses:
+        '200':
+          description: Preferencias exportadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: integer
+                        example: 14
+                      exportDate:
+                        type: string
+                        format: date-time
+                        example: "2025-09-24T10:30:00Z"
+                      preferences:
+                        $ref: '#/components/schemas/PreferenciasUsuario'
+                  message:
+                    type: string
+                    example: Preferencias exportadas exitosamente
+        '401':
+          description: No autorizado
+
+  # =============================================
+  # ENDPOINTS DE GEOLOCALIZACIÓN
+  # =============================================
+
+  /usuarios/ubicacion:
+    post:
+      tags: [Geolocalización]
+      summary: Actualizar ubicación del usuario
+      description: Actualiza la ubicación actual del usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UbicacionInput'
+      responses:
+        '200':
+          description: Ubicación actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Ubicación actualizada exitosamente
+                  data:
+                    type: object
+                    properties:
+                      latitude:
+                        type: number
+                        format: float
+                        example: 19.432608
+                      longitude:
+                        type: number
+                        format: float
+                        example: -99.133209
+                      timestamp:
+                        type: string
+                        format: date-time
+                        example: "2025-09-24T10:30:00Z"
+        '400':
+          description: Error de validación
+        '401':
+          description: No autorizado
+
+    delete:
+      tags: [Geolocalización]
+      summary: Eliminar datos de ubicación del usuario
+      description: Elimina todos los datos de ubicación del usuario
+      responses:
+        '200':
+          description: Datos de ubicación eliminados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Datos de ubicación eliminados exitosamente
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /usuarios/mi-ubicacion:
+    get:
+      tags: [Geolocalización]
+      summary: Obtener mi ubicación actual
+      description: Retorna la ubicación actual del usuario autenticado
+      responses:
+        '200':
+          description: Ubicación obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      latitude:
+                        type: number
+                        format: float
+                        example: 19.432608
+                      longitude:
+                        type: number
+                        format: float
+                        example: -99.133209
+                      lastUpdate:
+                        type: string
+                        format: date-time
+                        example: "2025-09-24T10:30:00Z"
+        '404':
+          description: Ubicación no encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: No se ha registrado ubicación para este usuario
+        '401':
+          description: No autorizado
+
+  /usuarios/estadisticas-ubicacion:
+    get:
+      tags: [Geolocalización, Administración]
+      summary: Estadísticas de ubicación (Admin)
+      description: Obtiene estadísticas generales de ubicación de usuarios (solo administradores)
+      responses:
+        '200':
+          description: Estadísticas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      totalUsuariosConUbicacion:
+                        type: integer
+                        example: 25
+                      usuariosActivos24h:
+                        type: integer
+                        example: 15
+                      promedioActualizacionesDiarias:
+                        type: number
+                        format: float
+                        example: 8.5
+                      regiones:
+                        type: object
+                        example:
+                          "Ciudad de México": 10
+                          "Guadalajara": 8
+                          "Monterrey": 7
+        '401':
+          description: No autorizado
+        '403':
+          description: Acceso denegado - Se requieren permisos de administrador
+
+  # =============================================
+  # ENDPOINTS DE BIOMETRÍA
+  # =============================================
+
+  /biometric/setup-pin:
+    post:
+      tags: [Biometría]
+      summary: Configurar PIN biométrico
+      description: Configura un PIN de 6 dígitos para autenticación biométrica
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PINSetupInput'
+      responses:
+        '201':
+          description: PIN configurado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: PIN biométrico configurado exitosamente
+        '400':
+          description: Error de validación o PIN ya configurado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Ya tienes un PIN configurado
+        '401':
+          description: No autorizado
+
+  /biometric/verify-pin:
+    post:
+      tags: [Biometría]
+      summary: Verificar PIN biométrico
+      description: Verifica el PIN del usuario y registra el intento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PINVerifyInput'
+      responses:
+        '200':
+          description: PIN verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: PIN verificado exitosamente
+        '400':
+          description: PIN incorrecto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: PIN incorrecto
+                  remainingAttempts:
+                    type: integer
+                    example: 2
+        '423':
+          description: PIN bloqueado por muchos intentos fallidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: PIN bloqueado. Demasiados intentos fallidos
+                  blockedUntil:
+                    type: string
+                    format: date-time
+                    example: "2025-09-24T11:30:00Z"
+        '401':
+          description: No autorizado
+
+  /biometric/status:
+    get:
+      tags: [Biometría]
+      summary: Obtener estado del PIN biométrico
+      description: Retorna el estado actual del sistema biométrico del usuario
+      responses:
+        '200':
+          description: Estado obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/BiometricStatus'
+        '401':
+          description: No autorizado
+
+  /biometric/disable:
+    post:
+      tags: [Biometría]
+      summary: Desactivar autenticación biométrica
+      description: Desactiva y elimina la configuración biométrica del usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPin
+              properties:
+                currentPin:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  example: "123456"
+      responses:
+        '200':
+          description: Biometría desactivada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Autenticación biométrica desactivada exitosamente
+        '400':
+          description: PIN incorrecto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: PIN actual incorrecto
+        '401':
+          description: No autorizado
+
+  /biometric/change-pin:
+    post:
+      tags: [Biometría]
+      summary: Cambiar PIN biométrico
+      description: Cambia el PIN actual por uno nuevo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PINChangeInput'
+      responses:
+        '200':
+          description: PIN cambiado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: PIN cambiado exitosamente
+        '400':
+          description: PIN actual incorrecto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: PIN actual incorrecto
+        '401':
+          description: No autorizado
+
+  /biometric/request-pin-reset:
+    post:
+      tags: [Biometría]
+      summary: Solicitar restablecimiento de PIN (sin auth)
+      description: Solicita un código de verificación para restablecer PIN bloqueado
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@email.com"
+      responses:
+        '200':
+          description: Código de verificación enviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Código de verificación enviado a tu email
+                  resetId:
+                    type: string
+                    example: "reset_123456789"
+        '404':
+          description: Usuario no encontrado o PIN no configurado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Usuario no encontrado o no tiene PIN configurado
+
+  /biometric/check-reset-status:
+    post:
+      tags: [Biometría]
+      summary: Verificar estado del restablecimiento (sin auth)
+      description: Verifica si un código de restablecimiento sigue activo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resetId
+              properties:
+                resetId:
+                  type: string
+                  example: "reset_123456789"
+      responses:
+        '200':
+          description: Estado del restablecimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  isActive:
+                    type: boolean
+                    example: true
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    example: "2025-09-24T11:30:00Z"
+
+  /biometric/verify-code-only:
+    post:
+      tags: [Biometría]
+      summary: Verificar solo el código de restablecimiento (sin auth)
+      description: Verifica únicamente si el código de verificación es correcto
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resetId
+                - verificationCode
+              properties:
+                resetId:
+                  type: string
+                  example: "reset_123456789"
+                verificationCode:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  example: "654321"
+      responses:
+        '200':
+          description: Código verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Código verificado exitosamente
+        '400':
+          description: Código incorrecto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Código de verificación incorrecto
+
+  /biometric/reset-pin-final:
+    post:
+      tags: [Biometría]
+      summary: Restablecer PIN final (sin auth)
+      description: Restablece el PIN usando el código de verificación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PINResetFinalInput'
+      responses:
+        '200':
+          description: PIN restablecido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: PIN restablecido exitosamente
+        '400':
+          description: Error en el restablecimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Código de verificación incorrecto o expirado
+
 components:
   schemas:
     # Schemas de Autenticación
@@ -1490,6 +2328,233 @@ components:
           format: float
           minimum: 0.01
           example: 279.97
+
+    # Schemas de Preferencias
+    PreferenciasUsuario:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 14
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          example: "dark"
+        language:
+          type: string
+          example: "es"
+        notifications:
+          type: object
+          properties:
+            email:
+              type: boolean
+              example: true
+            push:
+              type: boolean
+              example: false
+            sms:
+              type: boolean
+              example: false
+        privacy:
+          type: object
+          properties:
+            showLocation:
+              type: boolean
+              example: false
+            showOnlineStatus:
+              type: boolean
+              example: true
+            allowContactByEmail:
+              type: boolean
+              example: true
+        dashboard:
+          type: object
+          properties:
+            layout:
+              type: string
+              enum: [grid, list, cards]
+              example: "grid"
+            itemsPerPage:
+              type: integer
+              minimum: 5
+              maximum: 100
+              example: 20
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-09-24T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-09-24T10:35:00Z"
+
+    PreferenciasInput:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          example: "dark"
+        language:
+          type: string
+          example: "es"
+        notifications:
+          type: object
+          properties:
+            email:
+              type: boolean
+              example: true
+            push:
+              type: boolean
+              example: false
+            sms:
+              type: boolean
+              example: false
+        privacy:
+          type: object
+          properties:
+            showLocation:
+              type: boolean
+              example: false
+            showOnlineStatus:
+              type: boolean
+              example: true
+            allowContactByEmail:
+              type: boolean
+              example: true
+        dashboard:
+          type: object
+          properties:
+            layout:
+              type: string
+              enum: [grid, list, cards]
+              example: "grid"
+            itemsPerPage:
+              type: integer
+              minimum: 5
+              maximum: 100
+              example: 20
+
+    PreferenciasEspecificas:
+      type: object
+      properties:
+        key:
+          type: string
+          example: "theme"
+        value:
+          oneOf:
+            - type: string
+            - type: boolean
+            - type: integer
+            - type: object
+          example: "dark"
+
+    # Schemas de Geolocalización
+    UbicacionInput:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          format: float
+          example: 19.432608
+        longitude:
+          type: number
+          format: float
+          example: -99.133209
+
+    # Schemas de Biometría
+    PINSetupInput:
+      type: object
+      required:
+        - pin
+      properties:
+        pin:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+        deviceInfo:
+          type: string
+          example: "iPhone 13 - iOS 16.2"
+
+    PINVerifyInput:
+      type: object
+      required:
+        - pin
+      properties:
+        pin:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+
+    PINChangeInput:
+      type: object
+      required:
+        - currentPin
+        - newPin
+      properties:
+        currentPin:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+        newPin:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "654321"
+
+    PINResetFinalInput:
+      type: object
+      required:
+        - resetId
+        - verificationCode
+        - newPin
+      properties:
+        resetId:
+          type: string
+          example: "reset_123456789"
+        verificationCode:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "654321"
+        newPin:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "111222"
+
+    BiometricStatus:
+      type: object
+      properties:
+        hasPIN:
+          type: boolean
+          example: true
+        isBlocked:
+          type: boolean
+          example: false
+        failedAttempts:
+          type: integer
+          example: 0
+        maxAttempts:
+          type: integer
+          example: 3
+        blockedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        lastSuccessfulLogin:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-09-24T09:15:00Z"
+        setupDate:
+          type: string
+          format: date-time
+          example: "2025-09-20T14:30:00Z"
 
     ErrorResponse:
       type: object

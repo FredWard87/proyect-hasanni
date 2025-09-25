@@ -1,6 +1,12 @@
 const bcrypt = require('bcryptjs');
 const { query } = require('../config/database');
 
+// ✅ FUNCIÓN DE UTILIDAD PARA GENERAR TOKENS
+const generarTokenSeguro = (longitud = 32) => {
+  const crypto = require('crypto');
+  return crypto.randomBytes(longitud).toString('hex');
+};
+
 class Usuario {
   constructor(id = null, nombre = '', email = '', password = '', rol = '', 
               otp = null, otp_expires = null, proveedor = null,
@@ -60,6 +66,15 @@ class Usuario {
         REGEX: /^\d{4}$/
       }
     };
+  }
+
+  // ✅ MÉTODO PARA GENERAR Y GUARDAR TOKEN
+  static async generarYGuardarToken(userId) {
+    const token = generarTokenSeguro(32);
+    const expiry = new Date(Date.now() + 3600000); // 1 hora
+    
+    const tokenData = await Usuario.guardarTokenRestablecimiento(userId, token, expiry);
+    return { token, expiry, tokenData };
   }
 
   // Actualizar ubicación del usuario
@@ -192,6 +207,161 @@ class Usuario {
     if (!id) return false;
     const numId = parseInt(id);
     return !isNaN(numId) && numId > 0 && Number.isInteger(numId);
+  }
+
+  // ✅ MÉTODOS PARA TOKENS DE RESTABLECIMIENTO
+
+  // Método para guardar token de restablecimiento
+  static async guardarTokenRestablecimiento(userId, token, expiry) {
+    try {
+      // Primero eliminar cualquier token existente para este usuario
+      await query(
+        'DELETE FROM password_reset_tokens WHERE user_id = $1',
+        [userId]
+      );
+
+      // Insertar nuevo token
+      const result = await query(
+        `INSERT INTO password_reset_tokens (user_id, token, expires_at) 
+         VALUES ($1, $2, $3) 
+         RETURNING id, user_id, token, expires_at, created_at`,
+        [userId, token, expiry]
+      );
+
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error al guardar token de restablecimiento:', error);
+      throw new Error('Error al generar token de restablecimiento');
+    }
+  }
+
+  // Método para obtener token de restablecimiento válido
+  static async obtenerTokenValido(token) {
+    try {
+      const result = await query(
+        `SELECT prt.*, u.id as user_id, u.email, u.nombre 
+         FROM password_reset_tokens prt
+         JOIN usuarios u ON prt.user_id = u.id
+         WHERE prt.token = $1 AND prt.expires_at > NOW()`,
+        [token]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error al obtener token válido:', error);
+      throw new Error('Error al verificar token');
+    }
+  }
+
+  // Método para eliminar token usado
+  static async eliminarToken(token) {
+    try {
+      await query(
+        'DELETE FROM password_reset_tokens WHERE token = $1',
+        [token]
+      );
+    } catch (error) {
+      console.error('Error al eliminar token:', error);
+      throw new Error('Error al procesar token');
+    }
+  }
+
+  // Método para eliminar tokens expirados
+  static async limpiarTokensExpirados() {
+    try {
+      const result = await query(
+        'DELETE FROM password_reset_tokens WHERE expires_at <= NOW() RETURNING id'
+      );
+      
+      if (result.rowCount > 0) {
+        console.log(`🧹 Tokens expirados eliminados: ${result.rowCount}`);
+      }
+      
+      return result.rowCount;
+    } catch (error) {
+      console.error('Error al limpiar tokens expirados:', error);
+      return 0;
+    }
+  }
+
+  // Método para cambiar contraseña usando token
+  static async cambiarPasswordConToken(token, nuevaPassword) {
+    try {
+      // Obtener token válido
+      const tokenData = await Usuario.obtenerTokenValido(token);
+      if (!tokenData) {
+        throw new Error('Token inválido o expirado');
+      }
+
+      // Obtener usuario
+      const usuario = await Usuario.obtenerPorId(tokenData.user_id);
+      if (!usuario) {
+        throw new Error('Usuario no encontrado');
+      }
+
+      // Validar nueva contraseña
+      const erroresPassword = usuario.validarPassword(nuevaPassword);
+      if (erroresPassword.length > 0) {
+        throw new Error(`Contraseña inválida: ${erroresPassword.join(', ')}`);
+      }
+
+      // Cambiar contraseña
+      usuario.password = nuevaPassword;
+      await usuario.encriptarPassword();
+      
+      // Actualizar en base de datos
+      const result = await query(
+        'UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING id',
+        [usuario.password, usuario.id]
+      );
+
+      if (result.rowCount === 0) {
+        throw new Error('Error al actualizar contraseña');
+      }
+
+      // Eliminar token usado
+      await Usuario.eliminarToken(token);
+
+      console.log(`✅ Contraseña restablecida para: ${usuario.email}`);
+      return usuario;
+
+    } catch (error) {
+      console.error('Error al cambiar contraseña con token:', error);
+      throw error;
+    }
+  }
+
+  // Método para obtener tokens activos de un usuario
+  static async obtenerTokensActivos(userId) {
+    try {
+      const result = await query(
+        `SELECT id, token, expires_at, created_at 
+         FROM password_reset_tokens 
+         WHERE user_id = $1 AND expires_at > NOW() 
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      return result.rows;
+    } catch (error) {
+      console.error('Error al obtener tokens activos:', error);
+      throw new Error('Error al consultar tokens');
+    }
+  }
+
+  // ✅ MÉTODO PARA VERIFICAR TOKENS ACTIVOS
+  static async tieneTokensActivos(userId) {
+    try {
+      const tokens = await Usuario.obtenerTokensActivos(userId);
+      return tokens.length > 0;
+    } catch (error) {
+      console.error('Error verificando tokens activos:', error);
+      return false;
+    }
   }
 
   // Validar PIN
@@ -719,6 +889,46 @@ class Usuario {
       throw new Error('Error al obtener estadísticas de usuarios');
     }
   }
+
+    // ✅ MÉTODO PARA CAMBIAR CONTRASEÑA
+    async cambiarPassword(nuevaPassword) {
+        try {
+            const salt = await bcrypt.genSalt(10);
+            this.password = await bcrypt.hash(nuevaPassword, salt);
+            
+            const query = require('../config/database').query;
+            await query(
+                'UPDATE usuarios SET password = $1 WHERE id = $2',
+                [this.password, this.id]
+            );
+            
+            return this;
+        } catch (error) {
+            throw new Error('Error al cambiar la contraseña: ' + error.message);
+        }
+    }
+
+    // ✅ MÉTODO PARA CAMBIAR CONTRASEÑA CON TOKEN (alternativo)
+    static async cambiarPasswordConToken(token, nuevaPassword) {
+        try {
+            const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+            const decoded = jwt.verify(token, JWT_SECRET);
+            
+            const usuario = await Usuario.obtenerPorId(decoded.userId);
+            if (!usuario) {
+                throw new Error('Usuario no encontrado');
+            }
+            
+            return await usuario.cambiarPassword(nuevaPassword);
+        } catch (error) {
+            throw new Error('Error al cambiar contraseña con token: ' + error.message);
+        }
+    }
+
+    // ✅ MÉTODO PARA VERIFICAR CONTRASEÑA
+    async verificarPassword(password) {
+        return await bcrypt.compare(password, this.password);
+    }
 
   // Obtener estadísticas biométricas
   static async obtenerEstadisticasBiometricas() {

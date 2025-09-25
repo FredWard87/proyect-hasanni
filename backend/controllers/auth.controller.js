@@ -4,11 +4,14 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const dns = require('dns').promises;
-const notificationMiddleware = require('../middlewares/notificationMiddleware'); // ← NUEVO
+const notificationMiddleware = require('../middlewares/notificationMiddleware');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 const OTP_EXPIRATION_MINUTES = 5;
 const OFFLINE_CODE_EXPIRATION_MINUTES = 10;
+
+// ✅ ALMACÉN DE SESIONES ACTIVAS (en memoria - para producción usar Redis)
+const activeSessions = new Map();
 
 // Configuración de nodemailer
 const transporter = nodemailer.createTransport({
@@ -18,6 +21,83 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
+
+// ✅ VERIFICACIÓN RÁPIDA DE CONEXIÓN A INTERNET
+async function quickInternetCheck() {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      resolve(false);
+    }, 1000);
+
+    const socket = require('net').connect({ 
+      host: '8.8.8.8', 
+      port: 53, 
+      timeout: 800 
+    });
+
+    socket.on('connect', () => {
+      clearTimeout(timeout);
+      socket.destroy();
+      resolve(true);
+    });
+
+    socket.on('error', () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+
+    socket.on('timeout', () => {
+      clearTimeout(timeout);
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
+// ✅ VERIFICAR SI EL USUARIO YA TIENE UNA SESIÓN ACTIVA
+function checkActiveSession(userId) {
+  const session = activeSessions.get(userId);
+  if (!session) return null;
+  
+  const now = Date.now();
+  if (now < session.expiresAt) {
+    return session;
+  } else {
+    // Sesión expirada, limpiar
+    activeSessions.delete(userId);
+    return null;
+  }
+}
+
+// ✅ AGREGAR SESIÓN ACTIVA
+function addActiveSession(userId, token, expiresIn = '1h') {
+  const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hora por defecto
+  const session = {
+    userId,
+    token,
+    createdAt: Date.now(),
+    expiresAt,
+    lastActivity: Date.now()
+  };
+  
+  activeSessions.set(userId, session);
+  return session;
+}
+
+// ✅ ELIMINAR SESIÓN ACTIVA
+function removeActiveSession(userId) {
+  return activeSessions.delete(userId);
+}
+
+// ✅ ACTUALIZAR ACTIVIDAD DE SESIÓN
+function updateSessionActivity(userId) {
+  const session = activeSessions.get(userId);
+  if (session) {
+    session.lastActivity = Date.now();
+    return true;
+  }
+  return false;
+}
 
 // Utilidad para enviar emails
 async function sendEmail(to, subject, html) {
@@ -29,28 +109,319 @@ async function sendEmail(to, subject, html) {
       html,
     });
     console.log(`✅ Email enviado a: ${to}`);
-  } catch (error) {
-    console.error('❌ Error enviando email:', error);
-    throw new Error('Error enviando email');
-  }
-}
-
-// Verificar conexión a internet
-async function checkInternetConnection() {
-  try {
-    await dns.resolve('google.com');
     return true;
   } catch (error) {
-    console.log('🌐 Modo offline detectado');
+    console.error('❌ Error enviando email:', error);
     return false;
   }
 }
+
+// ✅ FUNCIÓN ADMIN RESET PASSWORD MEJORADA CON SOPORTE OFFLINE
+exports.adminResetPassword = async (req, res) => {
+  try {
+    const { userId, email } = req.body;
+    const adminId = req.user.userId;
+
+    // Verificar que el usuario que hace la solicitud es admin
+    const adminUser = await Usuario.obtenerPorId(adminId);
+    if (adminUser.rol !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo los administradores pueden restablecer contraseñas'
+      });
+    }
+
+     // Si se proporciona email, validar formato
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de email inválido. Debe ser un email válido (ejemplo@gmail.com)'
+        });
+      }
+    }
+
+    // Buscar el usuario objetivo por ID o email
+    let targetUser;
+    if (userId) {
+      targetUser = await Usuario.obtenerPorId(userId);
+    } else if (email) {
+      targetUser = await Usuario.obtenerPorEmail(email);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Se requiere userId o email del usuario'
+      });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // Generar token de restablecimiento
+    const resetToken = jwt.sign(
+      { 
+        userId: targetUser.id, 
+        type: 'password_reset',
+        timestamp: Date.now(),
+        adminRequest: true 
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const hasInternet = await quickInternetCheck();
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+    
+    let emailSent = false;
+    let consoleCode = '';
+
+    if (hasInternet) {
+      // Intentar enviar email
+      emailSent = await sendEmail(
+        targetUser.email,
+        'Restablecimiento de contraseña solicitado por administrador',
+        `<p>Un administrador ha solicitado el restablecimiento de tu contraseña.</p>
+         <p>Haz clic <a href="${resetLink}">aquí</a> para crear una nueva contraseña.</p>
+         <p>Este enlace expira en 1 hora.</p>
+         <p><strong>Token alternativo (para uso offline):</strong> ${resetToken}</p>`
+      );
+    }
+
+    // Siempre generar código para consola (modo offline)
+    consoleCode = resetToken;
+    
+    console.log('🔐 ADMIN RESET PASSWORD SOLICITADO');
+    console.log(`👤 Admin: ${adminUser.nombre} (${adminUser.email})`);
+    console.log(`🎯 Usuario objetivo: ${targetUser.nombre} (${targetUser.email})`);
+    console.log(`🌐 Estado conexión: ${hasInternet ? 'ONLINE' : 'OFFLINE'}`);
+    console.log(`📧 Email enviado: ${emailSent ? 'SÍ' : 'NO'}`);
+    console.log(`🔗 Enlace de restablecimiento: ${resetLink}`);
+    console.log(`🔑 Token para consola: ${consoleCode}`);
+    console.log('⏰ Expira en: 1 hora');
+
+    res.json({
+      success: true,
+      message: `Solicitud de restablecimiento procesada para ${targetUser.email}`,
+      data: {
+        userId: targetUser.id,
+        email: targetUser.email,
+        internet: hasInternet,
+        emailSent: emailSent,
+        resetLink: process.env.NODE_ENV === 'development' ? resetLink : undefined,
+        token: process.env.NODE_ENV === 'development' ? consoleCode : undefined,
+        mode: hasInternet ? 'online' : 'offline'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error en adminResetPassword:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al procesar la solicitud de restablecimiento'
+    });
+  }
+};
+
+// ✅ FUNCIÓN FORGOT PASSWORD MEJORADA CON SOPORTE OFFLINE Y VALIDACIÓN DE EMAIL
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Validar que se proporcionó un email
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'El email es requerido'
+      });
+    }
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Formato de email inválido. Debe ser un email válido (ejemplo@gmail.com)'
+      });
+    }
+    
+    // Validar dominios específicos si lo deseas (opcional)
+    const allowedDomains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com'];
+    const emailDomain = email.split('@')[1];
+    
+    if (!allowedDomains.includes(emailDomain)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Dominio de email no permitido. Use @gmail.com, @hotmail.com, etc.'
+      });
+    }
+    
+    const usuario = await Usuario.obtenerPorEmail(email);
+    
+    // Por seguridad, siempre devolver éxito aunque el email no exista
+    if (!usuario) {
+      return res.status(200).json({ 
+        success: true,
+        message: 'Si el email existe, se enviará un enlace de restablecimiento',
+        data: {
+          emailExists: false,
+          emailValid: true,
+          domainValid: true
+        }
+      });
+    }
+
+    // Generar token de restablecimiento
+    const resetToken = jwt.sign(
+      { 
+        userId: usuario.id, 
+        type: 'password_reset',
+        timestamp: Date.now() 
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const hasInternet = await quickInternetCheck();
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+    
+    let emailSent = false;
+    let consoleCode = '';
+
+    if (hasInternet) {
+      // Intentar enviar email
+      emailSent = await sendEmail(
+        usuario.email,
+        'Recuperación de contraseña',
+        `<p>Has solicitado el restablecimiento de tu contraseña.</p>
+         <p>Haz clic <a href="${resetLink}">aquí</a> para crear una nueva contraseña.</p>
+         <p>Este enlace expira en 1 hora.</p>
+         <p><strong>Token alternativo (para uso offline):</strong> ${resetToken}</p>`
+      );
+    }
+
+    // Siempre generar código para consola (modo offline)
+    consoleCode = resetToken;
+    
+    console.log('🔐 FORGOT PASSWORD SOLICITADO');
+    console.log(`👤 Usuario: ${usuario.nombre} (${usuario.email})`);
+    console.log(`🌐 Estado conexión: ${hasInternet ? 'ONLINE' : 'OFFLINE'}`);
+    console.log(`📧 Email enviado: ${emailSent ? 'SÍ' : 'NO'}`);
+    console.log(`🔗 Enlace de restablecimiento: ${resetLink}`);
+    console.log(`🔑 Token para consola: ${consoleCode}`);
+    console.log('⏰ Expira en: 1 hora');
+
+    // Notificar solicitud de recuperación
+    await notificationMiddleware.onSuspiciousActivity(usuario.id, {
+      tipo: 'recuperacion_password_solicitada',
+      timestamp: new Date().toISOString(),
+      ip: req.ip,
+      modo: hasInternet ? 'online' : 'offline'
+    });
+
+    res.json({ 
+      success: true,
+      message: 'Si el email existe, se enviará un enlace de restablecimiento',
+      data: {
+        emailExists: true,
+        emailValid: true,
+        domainValid: true,
+        internet: hasInternet,
+        emailSent: emailSent,
+        resetLink: process.env.NODE_ENV === 'development' ? resetLink : undefined,
+        token: process.env.NODE_ENV === 'development' ? consoleCode : undefined,
+        mode: hasInternet ? 'online' : 'offline'
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ Error en forgotPassword:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error procesando la solicitud' 
+    });
+  }
+};
+
+// ✅ RESET PASSWORD MEJORADO
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token y nueva contraseña son requeridos'
+      });
+    }
+
+    // Verificar el token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token inválido o expirado'
+      });
+    }
+
+    // Verificar que es un token de restablecimiento
+    if (decoded.type !== 'password_reset') {
+      return res.status(400).json({
+        success: false,
+        message: 'Token no válido para restablecimiento'
+      });
+    }
+
+    // Cambiar la contraseña
+    const usuario = await Usuario.obtenerPorId(decoded.userId);
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    await usuario.cambiarPassword(password);
+
+    console.log('✅ CONTRASEÑA RESTABLECIDA EXITOSAMENTE');
+    console.log(`👤 Usuario: ${usuario.nombre} (${usuario.email})`);
+    console.log(`🕒 Fecha: ${new Date().toLocaleString()}`);
+
+    // Notificar cambio de contraseña exitoso
+    await notificationMiddleware.onSuspiciousActivity(usuario.id, {
+      tipo: 'password_actualizado',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
+    
+    res.json({ 
+      success: true,
+      message: 'Contraseña actualizada correctamente' 
+    });
+
+  } catch (err) {
+    console.error('❌ Error actualizando contraseña:', err);
+    res.status(500).json({ 
+      success: false,
+      message: err.message || 'Error actualizando contraseña' 
+    });
+  }
+};
 
 // Obtener usuario autenticado
 exports.me = async (req, res) => {
   try {
     const usuario = await Usuario.obtenerPorId(req.user.userId);
     if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+    
+    // Actualizar actividad de la sesión
+    updateSessionActivity(req.user.userId);
     
     res.json({
       id: usuario.id,
@@ -63,10 +434,29 @@ exports.me = async (req, res) => {
   }
 };
 
-// Registro de usuario
+// Registro de usuario con validación de email
 exports.register = async (req, res) => {
   try {
     const { nombre, email, password, rol } = req.body;
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        message: 'Formato de email inválido. Debe ser un email válido (ejemplo@gmail.com)' 
+      });
+    }
+    
+    // Validar dominios específicos
+    const allowedDomains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com'];
+    const emailDomain = email.split('@')[1];
+    
+    if (!allowedDomains.includes(emailDomain)) {
+      return res.status(400).json({ 
+        message: 'Dominio de email no permitido. Use @gmail.com, @hotmail.com, etc.' 
+      });
+    }
+    
     const usuario = new Usuario(null, nombre, email, password, rol);
 
     const errores = usuario.validar();
@@ -81,7 +471,7 @@ exports.register = async (req, res) => {
 
     await usuario.guardar();
 
-    // Notificación de bienvenida ← NUEVO
+    // Notificación de bienvenida
     await notificationMiddleware.onSystemUpdate({
       message: `Bienvenido ${usuario.nombre}! Tu cuenta ha sido creada exitosamente.`,
       tipo: 'bienvenida'
@@ -94,16 +484,29 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login con soporte online/offline
+// ✅ LOGIN CON CONTROL DE SESIONES ACTIVAS
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    // Validar entrada básica
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email y contraseña son requeridos' 
+      });
+    }
+
     const usuario = await Usuario.obtenerPorEmail(email);
-    if (!usuario) return res.status(400).json({ message: 'Credenciales inválidas.' });
+    if (!usuario) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Credenciales inválidas.' 
+      });
+    }
 
     const valid = await usuario.verificarPassword(password);
     if (!valid) {
-      // Notificar actividad sospechosa por intento fallido ← NUEVO
       await notificationMiddleware.onSuspiciousActivity(usuario.id, {
         tipo: 'intento_login_fallido',
         ip: req.ip,
@@ -111,13 +514,46 @@ exports.login = async (req, res) => {
         timestamp: new Date().toISOString()
       });
       
-      return res.status(400).json({ message: 'Credenciales inválidas.' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Credenciales inválidas.' 
+      });
     }
 
-    const hasInternet = await checkInternetConnection();
+    // ✅ VERIFICAR SI YA EXISTE UNA SESIÓN ACTIVA
+    const existingSession = checkActiveSession(usuario.id);
+    if (existingSession) {
+      const timeLeft = Math.max(0, existingSession.expiresAt - Date.now());
+      const minutesLeft = Math.ceil(timeLeft / (60 * 1000));
+      
+      console.log(`⚠️  Sesión activa detectada para usuario: ${usuario.email}`);
+      console.log(`⏰ La sesión actual expira en: ${minutesLeft} minutos`);
+      
+      return res.status(409).json({
+        success: false,
+        message: `Ya existe una sesión activa para este usuario`,
+        data: {
+          sessionActive: true,
+          expiresIn: minutesLeft,
+          message: `Tu sesión actual expira en ${minutesLeft} minutos. Espera a que expire o cierra la sesión actual.`
+        }
+      });
+    }
+
+    console.log(`🔐 Login iniciado para: ${usuario.email}`);
+    const startTime = Date.now();
+
+    // ✅ VERIFICACIÓN ULTRARRÁPIDA DE CONEXIÓN
+    const hasInternet = await quickInternetCheck();
+    const connectionCheckTime = Date.now() - startTime;
+    
+    console.log(`⚡ Verificación de conexión: ${connectionCheckTime}ms`);
+    console.log(`🌐 Estado: ${hasInternet ? 'ONLINE' : 'OFFLINE'}`);
+
     const query = require('../config/database').query;
 
     if (hasInternet) {
+      // MODO ONLINE - Proceso normal
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpires = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60000);
 
@@ -126,13 +562,15 @@ exports.login = async (req, res) => {
         [otp, otpExpires, usuario.id]
       );
 
-      await sendEmail(
+      // Enviar email de forma asíncrona (no esperar respuesta)
+      sendEmail(
         usuario.email,
         'Tu código de acceso (OTP)',
         `<p>Tu código de acceso es: <b>${otp}</b>. Expira en ${OTP_EXPIRATION_MINUTES} minutos.</p>`
-      );
+      ).then(sent => {
+        console.log(sent ? '📧 Email enviado' : '❌ Error enviando email');
+      });
 
-      // Notificar inicio de sesión ← NUEVO
       await notificationMiddleware.onSuspiciousActivity(usuario.id, {
         tipo: 'login_exitoso',
         ip: req.ip,
@@ -141,18 +579,25 @@ exports.login = async (req, res) => {
         modo: 'online'
       });
 
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ Login ONLINE completado en: ${totalTime}ms`);
+
       res.json({ 
+        success: true,
         require2fa: true, 
         userId: usuario.id,
         mode: 'online',
+        responseTime: totalTime,
         message: 'Código enviado por correo electrónico'
       });
       
     } else {
+      // ✅ MODO OFFLINE - PROCESO ACELERADO
       const offlineCode = Math.floor(1000 + Math.random() * 9000).toString();
-      const codeHash = await bcrypt.hash(offlineCode, 10);
+      const codeHash = await bcrypt.hash(offlineCode, 8); // Salt más bajo para mayor velocidad
       const codeExpires = new Date(Date.now() + OFFLINE_CODE_EXPIRATION_MINUTES * 60000);
       
+      // Actualización rápida en base de datos
       await query(
         'UPDATE usuarios SET offline_code_hash = $1, offline_code_expires = $2 WHERE id = $3',
         [codeHash, codeExpires, usuario.id]
@@ -160,7 +605,6 @@ exports.login = async (req, res) => {
 
       const showCode = process.env.NODE_ENV === 'development';
       
-      // Notificar inicio de sesión offline ← NUEVO
       await notificationMiddleware.onSuspiciousActivity(usuario.id, {
         tipo: 'login_exitoso',
         ip: req.ip,
@@ -169,10 +613,15 @@ exports.login = async (req, res) => {
         modo: 'offline'
       });
 
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ Login OFFLINE completado en: ${totalTime}ms`);
+
       res.json({ 
+        success: true,
         require2fa: true, 
         userId: usuario.id,
         mode: 'offline',
+        responseTime: totalTime,
         offlineCode: showCode ? offlineCode : undefined,
         message: showCode 
           ? `Modo offline. Tu código: ${offlineCode} (expira en ${OFFLINE_CODE_EXPIRATION_MINUTES} min)`
@@ -181,24 +630,40 @@ exports.login = async (req, res) => {
     }
     
   } catch (err) {
-    console.error('Error en el login:', err);
-    res.status(500).json({ message: 'Error en el login.' });
+    console.error('❌ Error en el login:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error en el login.' 
+    });
   }
 };
 
-// Verificación OTP mejorada para online/offline
+// ✅ VERIFICACIÓN OTP CON REGISTRO DE SESIÓN
 exports.verifyOtp = async (req, res) => {
   try {
     const { userId, otp } = req.body;
+    const startTime = Date.now();
+    
+    if (!userId || !otp) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'UserId y código OTP son requeridos' 
+      });
+    }
+
     const query = require('../config/database').query;
     
     const result = await query(
-      `SELECT * FROM usuarios WHERE id = $1`,
+      `SELECT id, nombre, email, rol, otp, otp_expires, offline_code_hash, offline_code_expires 
+       FROM usuarios WHERE id = $1`,
       [userId]
     );
     
     if (result.rows.length === 0) {
-      return res.status(400).json({ message: 'Usuario no encontrado.' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Usuario no encontrado.' 
+      });
     }
     
     const usuario = result.rows[0];
@@ -206,16 +671,18 @@ exports.verifyOtp = async (req, res) => {
     let mode = 'online';
     const now = new Date();
     
+    // Verificación rápida de OTP online
     if (usuario.otp === otp && new Date(usuario.otp_expires) > now) {
       isValid = true;
       mode = 'online';
-    } else if (usuario.offline_code_hash && new Date(usuario.offline_code_expires) > now) {
+    } 
+    // Verificación rápida de código offline
+    else if (usuario.offline_code_hash && new Date(usuario.offline_code_expires) > now) {
       isValid = await bcrypt.compare(otp, usuario.offline_code_hash);
       mode = 'offline';
     }
     
     if (!isValid) {
-      // Notificar intento de OTP inválido ← NUEVO
       await notificationMiddleware.onSuspiciousActivity(usuario.id, {
         tipo: 'otp_invalido',
         ip: req.ip,
@@ -223,9 +690,13 @@ exports.verifyOtp = async (req, res) => {
         modo: mode
       });
       
-      return res.status(400).json({ message: 'Código incorrecto o expirado.' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Código incorrecto o expirado.' 
+      });
     }
     
+    // Limpiar códigos usados
     await query(
       'UPDATE usuarios SET otp = NULL, otp_expires = NULL, offline_code_hash = NULL, offline_code_expires = NULL WHERE id = $1',
       [userId]
@@ -245,63 +716,164 @@ exports.verifyOtp = async (req, res) => {
       { expiresIn: tokenExpiresIn }
     );
 
-    // Notificar verificación exitosa ← NUEVO
+    // ✅ REGISTRAR NUEVA SESIÓN ACTIVA
+    addActiveSession(usuario.id, token, tokenExpiresIn);
+    
+    console.log(`✅ Nueva sesión registrada para: ${usuario.email}`);
+    console.log(`🔐 Modo: ${mode}`);
+    console.log(`⏰ Expira en: ${tokenExpiresIn}`);
+
     await notificationMiddleware.onSuspiciousActivity(usuario.id, {
       tipo: 'verificacion_exitosa',
       timestamp: new Date().toISOString(),
       modo: mode
     });
     
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ Verificación OTP ${mode} completada en: ${totalTime}ms`);
+    
     res.json({ 
+      success: true,
       token, 
       user: { 
+        id: usuario.id,
         nombre: usuario.nombre, 
         email: usuario.email, 
         rol: usuario.rol 
       },
       mode,
+      responseTime: totalTime,
       message: mode === 'offline' ? 'Autenticación offline exitosa' : 'Autenticación exitosa'
     });
     
   } catch (err) {
-    console.error('Error verificando OTP:', err);
-    res.status(500).json({ message: 'Error verificando OTP.' });
+    console.error('❌ Error verificando OTP:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error verificando OTP.' 
+    });
   }
 };
 
-// Solicitar recuperación de contraseña
-exports.forgotPassword = async (req, res) => {
+// ✅ LOGOUT - ELIMINAR SESIÓN ACTIVA
+exports.logout = async (req, res) => {
   try {
-    const { email } = req.body;
-    const usuario = await Usuario.obtenerPorEmail(email);
-    if (!usuario) return res.status(200).json({ message: 'Si el email existe, se enviará un enlace.' });
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const otpExpires = new Date(Date.now() + 15 * 60000);
-
-    await require('../config/database').query(
-      'UPDATE usuarios SET otp = $1, otp_expires = $2 WHERE id = $3',
-      [resetToken, otpExpires, usuario.id]
-    );
-
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    await sendEmail(
-      usuario.email,
-      'Recupera tu contraseña',
-      `<p>Haz clic <a href="${resetUrl}">aquí</a> para restablecer tu contraseña. El enlace expira en 15 minutos.</p>`
-    );
-
-    // Notificar solicitud de recuperación ← NUEVO
-    await notificationMiddleware.onSuspiciousActivity(usuario.id, {
-      tipo: 'recuperacion_password_solicitada',
-      timestamp: new Date().toISOString(),
-      ip: req.ip
+    const userId = req.user.userId;
+    
+    // Eliminar sesión activa
+    const removed = removeActiveSession(userId);
+    
+    if (removed) {
+      console.log(`✅ Sesión eliminada para usuario ID: ${userId}`);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Sesión cerrada exitosamente'
     });
-
-    res.json({ message: 'Si el email existe, se enviará un enlace.' });
+    
   } catch (err) {
-    console.error('Error enviando email:', err);
-    res.status(500).json({ message: 'Error enviando email.' });
+    console.error('❌ Error en logout:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error cerrando sesión'
+    });
+  }
+};
+
+// ✅ VERIFICAR ESTADO DE SESIÓN
+exports.checkSession = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const session = checkActiveSession(userId);
+    
+    if (session) {
+      const timeLeft = session.expiresAt - Date.now();
+      const minutesLeft = Math.ceil(timeLeft / (60 * 1000));
+      
+      res.json({
+        success: true,
+        sessionActive: true,
+        data: {
+          userId: session.userId,
+          createdAt: new Date(session.createdAt).toISOString(),
+          lastActivity: new Date(session.lastActivity).toISOString(),
+          expiresAt: new Date(session.expiresAt).toISOString(),
+          expiresIn: minutesLeft,
+          timeLeft: timeLeft
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        sessionActive: false,
+        message: 'No hay sesión activa'
+      });
+    }
+    
+  } catch (err) {
+    console.error('❌ Error verificando sesión:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error verificando sesión'
+    });
+  }
+};
+
+// ✅ ENDPOINT PARA FORZAR CIERRE DE SESIÓN (admin)
+exports.forceLogout = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'UserId es requerido'
+      });
+    }
+    
+    // Verificar que el usuario que hace la solicitud es admin
+    const adminUser = await Usuario.obtenerPorId(req.user.userId);
+    if (adminUser.rol !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo los administradores pueden forzar cierre de sesión'
+      });
+    }
+    
+    const targetUser = await Usuario.obtenerPorId(userId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+    
+    // Eliminar sesión activa
+    const removed = removeActiveSession(userId);
+    
+    await notificationMiddleware.onSuspiciousActivity(userId, {
+      tipo: 'sesion_forzada_cerrada',
+      timestamp: new Date().toISOString(),
+      administrador: adminUser.nombre
+    });
+    
+    res.json({
+      success: true,
+      message: `Sesión forzada cerrada para ${targetUser.email}`,
+      data: {
+        userId: userId,
+        email: targetUser.email,
+        sessionRemoved: removed
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ Error forzando logout:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error forzando cierre de sesión'
+    });
   }
 };
 
@@ -319,6 +891,9 @@ exports.verifyToken = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Actualizar actividad de sesión si existe
+    updateSessionActivity(decoded.userId);
     
     const userResult = await query(
       'SELECT id, nombre, email FROM usuarios WHERE id = $1',
@@ -345,41 +920,47 @@ exports.verifyToken = async (req, res) => {
   }
 };
 
-// Resetear contraseña
-exports.resetPassword = async (req, res) => {
+// ✅ MÉTODO PARA OBTENER ESTADÍSTICAS DE SESIONES (admin)
+exports.getSessionsStats = async (req, res) => {
   try {
-    const { token, password } = req.body;
-    const query = require('../config/database').query;
-    
-    const result = await query(
-      'SELECT * FROM usuarios WHERE otp = $1 AND otp_expires > NOW()',
-      [token]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(400).json({ message: 'Token inválido o expirado.' });
+    // Verificar que el usuario es admin
+    const adminUser = await Usuario.obtenerPorId(req.user.userId);
+    if (adminUser.rol !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo los administradores pueden ver estadísticas de sesiones'
+      });
     }
     
-    const usuario = new Usuario();
-    Object.assign(usuario, result.rows[0]);
-    usuario.password = password;
-    await usuario.encriptarPassword();
+    const now = Date.now();
+    const activeSessionsCount = activeSessions.size;
     
-    await query(
-      'UPDATE usuarios SET password = $1, otp = NULL, otp_expires = NULL WHERE id = $2',
-      [usuario.password, usuario.id]
-    );
-
-    // Notificar cambio de contraseña exitoso ← NUEVO
-    await notificationMiddleware.onSuspiciousActivity(usuario.id, {
-      tipo: 'password_actualizado',
-      timestamp: new Date().toISOString(),
-      ip: req.ip
+    // Filtrar sesiones activas (no expiradas)
+    const trulyActiveSessions = Array.from(activeSessions.entries())
+      .filter(([userId, session]) => now < session.expiresAt)
+      .map(([userId, session]) => ({
+        userId,
+        createdAt: new Date(session.createdAt).toISOString(),
+        lastActivity: new Date(session.lastActivity).toISOString(),
+        expiresAt: new Date(session.expiresAt).toISOString(),
+        expiresIn: Math.ceil((session.expiresAt - now) / (60 * 1000))
+      }));
+    
+    res.json({
+      success: true,
+      data: {
+        totalSessions: activeSessionsCount,
+        activeSessions: trulyActiveSessions.length,
+        sessions: trulyActiveSessions,
+        lastUpdated: new Date().toISOString()
+      }
     });
     
-    res.json({ message: 'Contraseña actualizada correctamente.' });
   } catch (err) {
-    console.error('Error actualizando contraseña:', err);
-    res.status(500).json({ message: 'Error actualizando contraseña.' });
+    console.error('❌ Error obteniendo estadísticas de sesiones:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo estadísticas de sesiones'
+    });
   }
 };

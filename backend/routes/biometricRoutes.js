@@ -2,17 +2,18 @@ const express = require('express');
 const router = express.Router();
 const BiometricController = require('../controllers/biometricController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const { checkBiometricSetup } = require('../middlewares/biometricMiddleware');
 
-// Todas las rutas requieren autenticación normal
-router.use(authMiddleware);
-router.use(checkBiometricSetup);
+// Rutas públicas (sin autenticación)
+router.post('/request-pin-reset', BiometricController.requestPINReset);
+router.post('/verify-code-only', BiometricController.verifyCodeOnly);
+router.post('/reset-pin-final', BiometricController.resetPINWithCode);
+router.post('/check-reset-status', BiometricController.checkResetCodeStatus);
 
-// Rutas de PIN biométrico
-router.post('/setup-pin', BiometricController.setupPIN);
-router.post('/verify-pin', BiometricController.verifyPIN);
-router.get('/status', BiometricController.getPINStatus);
-router.post('/disable', BiometricController.disableBiometric);
-router.post('/change-pin', BiometricController.changePIN);
+// Rutas protegidas (con autenticación)
+router.post('/setup-pin', authMiddleware, BiometricController.setupPIN);
+router.post('/verify-pin', authMiddleware, BiometricController.verifyPIN);
+router.get('/status', authMiddleware, BiometricController.getPINStatus);
+router.post('/disable', authMiddleware, BiometricController.disableBiometric);
+router.post('/change-pin', authMiddleware, BiometricController.changePIN);
 
 module.exports = router;

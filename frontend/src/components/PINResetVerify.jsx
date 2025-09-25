@@ -1,88 +1,111 @@
 import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Box, Typography, Button, Alert,
-    CircularProgress, Stepper, Step, StepLabel,
-    Backdrop, Grid
+    Box, Typography, Button, Alert, TextField,
+    CircularProgress, Stepper, Step, StepLabel, Grid
 } from '@mui/material';
-import { Security, Fingerprint, CheckCircle, Backspace } from '@mui/icons-material';
+import { Security, CheckCircle, Backspace, VerifiedUser, LockReset } from '@mui/icons-material';
 
-const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
+const PINResetVerify = ({ open, onClose, onSuccess, email }) => {
     const [step, setStep] = useState(0);
-    const [pin, setPin] = useState('');
+    const [resetCode, setResetCode] = useState('');
+    const [newPin, setNewPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [attemptsLeft, setAttemptsLeft] = useState(3);
+    const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutos en segundos
 
-    const steps = ['Crear PIN', 'Confirmar PIN', 'Completado'];
+    const steps = ['Verificar Código', 'Nuevo PIN', 'Confirmar PIN', 'Completado'];
+
+    // Countdown timer
+    useEffect(() => {
+        if (open && timeLeft > 0) {
+            const timer = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 1) {
+                        setError('El código ha expirado. Solicita uno nuevo.');
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            return () => clearInterval(timer);
+        }
+    }, [open, timeLeft]);
 
     useEffect(() => {
         if (open) {
             setStep(0);
-            setPin('');
+            setResetCode('');
+            setNewPin('');
             setConfirmPin('');
             setError('');
             setSuccess('');
+            setAttemptsLeft(3);
+            setTimeLeft(15 * 60);
         }
     }, [open]);
 
-    // FUNCIÓN MEJORADA PARA LIMPIAR TODOS LOS DATOS DE AUTENTICACIÓN
-    const limpiarAutenticacion = () => {
-        console.log('🧹 Limpiando todos los tokens de autenticación');
-        localStorage.removeItem('token');
-        localStorage.removeItem('biometricToken');
-        localStorage.removeItem('userLocation');
-        localStorage.removeItem('offlineLocationQueue');
-        sessionStorage.clear();
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // FUNCIÓN SEGURA PARA onClose - LIMPIA TOKEN SI ES REQUERIDO
-    const handleCloseSafe = () => {
-        // Si es requerido el setup y el usuario cancela, limpiar el token
-        if (requiresSetup) {
-            console.log('🔴 Setup de PIN cancelado - Limpiando token');
-            limpiarAutenticacion();
-            
-            // Redirigir al login después de limpiar
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 500);
-        }
-        
-        // Llamar al onClose original si existe
-        if (typeof onClose === 'function') {
-            onClose();
-        }
-    };
+   const handleVerifyCode = async () => {
+    if (!resetCode || resetCode.length !== 6) {
+        setError('El código debe tener 6 caracteres');
+        return;
+    }
 
-    // FUNCIÓN PARA CANCELAR EXPLÍCITAMENTE
-    const handleCancelExplicit = () => {
-        console.log('❌ Usuario canceló configuración de PIN');
-        limpiarAutenticacion();
-        
-        if (typeof onClose === 'function') {
-            onClose();
+    setLoading(true);
+    setError('');
+
+    try {
+        // CAMBIA ESTA LÍNEA - usa verify-code-only en lugar de verify-reset-code
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/biometric/verify-code-only`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                email, 
+                resetCode 
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            setStep(1); // Pasar al paso de nuevo PIN
+            setError('');
+        } else {
+            setError(data.message || 'Código incorrecto');
+            if (data.attemptsLeft !== undefined) {
+                setAttemptsLeft(data.attemptsLeft);
+            }
         }
-        
-        // Redirigir al login
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 500);
-    };
+
+    } catch (error) {
+        setError('Error verificando código');
+    } finally {
+        setLoading(false);
+    }
+};
 
     const handleNumberClick = (number) => {
-        if (pin.length < 4 && step === 0) {
-            const newPin = pin + number;
-            setPin(newPin);
+        if (step === 1 && newPin.length < 4) {
+            const newPinValue = newPin + number;
+            setNewPin(newPinValue);
             setError('');
 
-            if (newPin.length === 4 && step === 0) {
-                setTimeout(() => {
-                    setStep(1);
-                }, 500);
+            if (newPinValue.length === 4) {
+                setTimeout(() => setStep(2), 500);
             }
-        } else if (confirmPin.length < 4 && step === 1) {
+        } else if (step === 2 && confirmPin.length < 4) {
             const newConfirmPin = confirmPin + number;
             setConfirmPin(newConfirmPin);
             setError('');
@@ -90,92 +113,70 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
     };
 
     const handleBackspace = () => {
-        if (step === 0 && pin.length > 0) {
-            setPin(pin.slice(0, -1));
+        if (step === 1 && newPin.length > 0) {
+            setNewPin(newPin.slice(0, -1));
             setError('');
-        } else if (step === 1 && confirmPin.length > 0) {
+        } else if (step === 2 && confirmPin.length > 0) {
             setConfirmPin(confirmPin.slice(0, -1));
             setError('');
         }
     };
 
-    const handleConfirmPIN = async () => {
-        if (pin !== confirmPin) {
-            setError('Los PINs no coinciden. Por favor, inténtalo de nuevo.');
-            setConfirmPin('');
-            return;
+   const handleResetPIN = async () => {
+    if (newPin !== confirmPin) {
+        setError('Los PINs no coinciden');
+        setConfirmPin('');
+        return;
+    }
+
+    const pinsComunes = ['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234'];
+    if (pinsComunes.includes(newPin)) {
+        setError('Por seguridad, elige un PIN menos común');
+        setNewPin('');
+        setConfirmPin('');
+        setStep(1);
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+        // CAMBIA ESTA LÍNEA - usa reset-pin-final en lugar de reset-pin
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/biometric/reset-pin-final`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email,
+                resetCode,
+                newPin
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            setSuccess('PIN restablecido correctamente');
+            setStep(3);
+            setTimeout(() => {
+                onSuccess && onSuccess();
+                onClose && onClose();
+            }, 2000);
+        } else {
+            setError(data.message || 'Error restableciendo PIN');
+            if (data.message && data.message.includes('Código incorrecto')) {
+                setStep(0); // Volver a verificar código
+                setResetCode('');
+            }
         }
 
-        const pinsComunes = ['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234'];
-        if (pinsComunes.includes(pin)) {
-            setError('Por seguridad, elige un PIN menos común.');
-            setPin('');
-            setConfirmPin('');
-            setStep(0);
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            
-            // Verificar que el token existe antes de continuar
-            if (!token) {
-                throw new Error('No se encontró token de autenticación');
-            }
-
-            const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/biometric/setup-pin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ pin })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                setSuccess('PIN configurado correctamente');
-                setStep(2);
-                
-                if (data.biometricToken) {
-                    localStorage.setItem('biometricToken', data.biometricToken);
-                }
-
-                setTimeout(() => {
-                    if (typeof onSuccess === 'function') {
-                        onSuccess();
-                    }
-                    // No llamar onClose aquí si requiresSetup es true
-                    if (!requiresSetup) {
-                        handleCloseSafe();
-                    }
-                }, 2000);
-            } else {
-                setError(data.message || 'Error configurando PIN');
-                setStep(0);
-                setPin('');
-                setConfirmPin('');
-            }
-        } catch (error) {
-            console.error('❌ Error configurando PIN:', error);
-            setError('Error de conexión. Verifica tu conexión a internet.');
-            setStep(0);
-            setPin('');
-            setConfirmPin('');
-            
-            // Si hay error de token, limpiar y redirigir
-            if (error.message.includes('token')) {
-                limpiarAutenticacion();
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 2000);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+    } catch (error) {
+        setError('Error restableciendo PIN');
+    } finally {
+        setLoading(false);
+    }
+};
 
     const renderStepContent = () => {
         switch (step) {
@@ -183,7 +184,53 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                 return (
                     <Box>
                         <Typography variant="body1" gutterBottom align="center">
-                            Crea un PIN de 4 dígitos para seguridad adicional
+                            Ingresa el código de 6 dígitos enviado a tu email
+                        </Typography>
+                        
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
+                            {email && `Código enviado a: ${email.replace(/(.{3}).*(@.*)/, '$1***$2')}`}
+                        </Typography>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                            <Typography variant="body2" color={timeLeft < 300 ? 'error' : 'text.secondary'}>
+                                Expira en: {formatTime(timeLeft)}
+                            </Typography>
+                        </Box>
+
+                        <TextField
+                            fullWidth
+                            label="Código de Verificación"
+                            value={resetCode}
+                            onChange={(e) => setResetCode(e.target.value.toUpperCase())}
+                            disabled={loading || timeLeft === 0}
+                            inputProps={{ maxLength: 6, style: { textAlign: 'center', letterSpacing: '0.5em' } }}
+                            sx={{ mb: 3 }}
+                            autoFocus
+                        />
+
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
+                            Intentos restantes: {attemptsLeft}
+                        </Typography>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                            <Button
+                                variant="contained"
+                                onClick={handleVerifyCode}
+                                disabled={resetCode.length !== 6 || loading || timeLeft === 0}
+                                startIcon={loading ? <CircularProgress size={16} /> : <VerifiedUser />}
+                                sx={{ minWidth: 200 }}
+                            >
+                                {loading ? 'Verificando...' : 'Verificar Código'}
+                            </Button>
+                        </Box>
+                    </Box>
+                );
+
+            case 1:
+                return (
+                    <Box>
+                        <Typography variant="body1" gutterBottom align="center">
+                            Crea tu nuevo PIN de 4 dígitos
                         </Typography>
                         
                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
@@ -194,7 +241,7 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                                         width: 20,
                                         height: 20,
                                         borderRadius: '50%',
-                                        bgcolor: pin.length >= index ? 'primary.main' : 'grey.300',
+                                        bgcolor: newPin.length >= index ? 'primary.main' : 'grey.300',
                                         mx: 1,
                                         transition: 'all 0.3s ease'
                                     }}
@@ -202,17 +249,13 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                             ))}
                         </Box>
 
-                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
-                            {pin.length}/4 dígitos
-                        </Typography>
-
                         <Grid container spacing={1} justifyContent="center" sx={{ maxWidth: 300, margin: '0 auto' }}>
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
                                 <Grid item xs={4} key={number}>
                                     <Button
                                         variant="outlined"
                                         onClick={() => handleNumberClick(number.toString())}
-                                        disabled={pin.length >= 4}
+                                        disabled={newPin.length >= 4}
                                         sx={{
                                             width: '100%',
                                             height: 60,
@@ -230,7 +273,7 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                                 <Button
                                     variant="outlined"
                                     onClick={handleBackspace}
-                                    disabled={pin.length === 0}
+                                    disabled={newPin.length === 0}
                                     sx={{
                                         width: '100%',
                                         height: 60,
@@ -244,7 +287,7 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                                 <Button
                                     variant="outlined"
                                     onClick={() => handleNumberClick('0')}
-                                    disabled={pin.length >= 4}
+                                    disabled={newPin.length >= 4}
                                     sx={{
                                         width: '100%',
                                         height: 60,
@@ -259,8 +302,8 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                             <Grid item xs={4}>
                                 <Button
                                     variant="contained"
-                                    onClick={() => setStep(1)}
-                                    disabled={pin.length !== 4}
+                                    onClick={() => setStep(2)}
+                                    disabled={newPin.length !== 4}
                                     sx={{
                                         width: '100%',
                                         height: 60,
@@ -272,21 +315,25 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                             </Grid>
                         </Grid>
 
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
-                            PIN: {pin.replace(/./g, '•')}
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                            <Button
+                                variant="outlined"
+                                onClick={() => {
+                                    setStep(0);
+                                    setNewPin('');
+                                }}
+                            >
+                                Atrás
+                            </Button>
+                        </Box>
                     </Box>
                 );
 
-            case 1:
+            case 2:
                 return (
                     <Box>
                         <Typography variant="body1" gutterBottom align="center">
-                            Confirma tu PIN
-                        </Typography>
-                        
-                        <Typography variant="body2" color="text.secondary" align="center">
-                            PIN original: {pin.replace(/./g, '•')}
+                            Confirma tu nuevo PIN
                         </Typography>
                         
                         <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
@@ -304,10 +351,6 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                                 />
                             ))}
                         </Box>
-
-                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
-                            {confirmPin.length}/4 dígitos
-                        </Typography>
 
                         <Grid container spacing={1} justifyContent="center" sx={{ maxWidth: 300, margin: '0 auto' }}>
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => (
@@ -361,49 +404,46 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                             </Grid>
                             <Grid item xs={4}>
                                 <Button
-                                    variant="outlined"
-                                    onClick={() => {
-                                        setStep(0);
-                                        setConfirmPin('');
-                                    }}
+                                    variant="contained"
+                                    onClick={handleResetPIN}
+                                    disabled={confirmPin.length !== 4 || loading}
+                                    startIcon={loading ? <CircularProgress size={16} /> : <LockReset />}
                                     sx={{
                                         width: '100%',
                                         height: 60,
                                         borderRadius: 2
                                     }}
                                 >
-                                    Atrás
+                                    {loading ? 'Guardando...' : 'Restablecer'}
                                 </Button>
                             </Grid>
                         </Grid>
 
                         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                             <Button
-                                variant="contained"
-                                onClick={handleConfirmPIN}
-                                disabled={confirmPin.length !== 4 || loading}
-                                startIcon={loading ? <CircularProgress size={16} /> : <Fingerprint />}
-                                sx={{ minWidth: 200 }}
+                                variant="outlined"
+                                onClick={() => {
+                                    setStep(1);
+                                    setConfirmPin('');
+                                }}
+                                disabled={loading}
+                                sx={{ mr: 2 }}
                             >
-                                {loading ? 'Configurando...' : 'Confirmar PIN'}
+                                Atrás
                             </Button>
                         </Box>
-
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
-                            Confirmación: {confirmPin.replace(/./g, '•')}
-                        </Typography>
                     </Box>
                 );
 
-            case 2:
+            case 3:
                 return (
                     <Box textAlign="center">
                         <CheckCircle sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
                         <Typography variant="h6" gutterBottom>
-                            ¡PIN Configurado!
+                            ¡PIN Restablecido!
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                            Tu autenticación biométrica está activa
+                            Ya puedes usar tu nuevo PIN para acceder
                         </Typography>
                     </Box>
                 );
@@ -416,7 +456,7 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
     return (
         <Dialog 
             open={open} 
-            onClose={requiresSetup ? undefined : handleCloseSafe}
+            onClose={onClose}
             maxWidth="sm"
             fullWidth
             PaperProps={{
@@ -425,10 +465,10 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
         >
             <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                    {step === 2 ? <CheckCircle color="success" /> : <Security color="primary" />}
+                    {step === 3 ? <CheckCircle color="success" /> : <Security color="primary" />}
                 </Box>
                 <Typography variant="h5" component="div">
-                    {requiresSetup ? 'Configuración de Seguridad' : 'Autenticación Biométrica'}
+                    Restablecer PIN
                 </Typography>
             </DialogTitle>
 
@@ -454,38 +494,17 @@ const PINSetup = ({ open, onClose, onSuccess, requiresSetup = false }) => {
                 )}
 
                 {renderStepContent()}
-
-                {requiresSetup && step === 0 && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                        Para mayor seguridad, debes configurar un PIN de acceso de 4 dígitos.
-                    </Alert>
-                )}
             </DialogContent>
 
             <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
-                {step < 2 && (
-                    <Button 
-                        onClick={requiresSetup ? handleCancelExplicit : handleCloseSafe} 
-                        disabled={loading}
-                        color="error"
-                        variant="outlined"
-                    >
-                        {requiresSetup ? 'Cancelar y Salir' : 'Cancelar'}
+                {step < 3 && (
+                    <Button onClick={onClose} disabled={loading}>
+                        Cancelar
                     </Button>
                 )}
             </DialogActions>
-
-            <Backdrop open={loading} sx={{ zIndex: 1300 }}>
-                <CircularProgress color="inherit" />
-            </Backdrop>
         </Dialog>
     );
 };
 
-// Valores por defecto para evitar errores
-PINSetup.defaultProps = {
-    onClose: () => console.warn('onClose no proporcionado para PINSetup'),
-    onSuccess: () => console.warn('onSuccess no proporcionado para PINSetup'),
-};
-
-export default PINSetup;
+export default PINResetVerify;

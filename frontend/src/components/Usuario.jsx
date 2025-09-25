@@ -60,7 +60,8 @@ import {
   Check as CheckIcon,
   Security as SecurityIcon,
   SystemUpdate as SystemUpdateIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  VpnKey as KeyIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import axios from 'axios';
@@ -391,6 +392,31 @@ const Usuarios = () => {
     return user && user.rol === 'admin';
   };
 
+  // Verificar si un usuario es el usuario actual
+  const esUsuarioActual = (usuario) => {
+    return user && usuario.id === user.id;
+  };
+
+  // Verificar si puede restablecer contraseña de un usuario específico
+  const puedeRestablecerContraseña = (usuario) => {
+    // Los administradores pueden restablecer todas las contraseñas
+    if (esAdministrador()) return true;
+    
+    // Los usuarios normales solo pueden restablecer su propia contraseña
+    return esUsuarioActual(usuario);
+  };
+
+  // Obtener texto para el tooltip según los permisos
+  const getTooltipRestablecimiento = (usuario) => {
+    if (esAdministrador()) {
+      return `Restablecer contraseña de ${usuario.nombre}`;
+    }
+    if (esUsuarioActual(usuario)) {
+      return 'Restablecer mi contraseña';
+    }
+    return 'Solo puedes restablecer tu propia contraseña';
+  };
+
   // Obtener usuario autenticado desde el backend
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -446,6 +472,81 @@ const Usuarios = () => {
       setTimeout(() => setError(null), 5000);
     }
   };
+
+  // ✅ FUNCIÓN MEJORADA PARA ENVIAR RESTABLECIMIENTO DE CONTRASEÑA
+  // ✅ FUNCIÓN MEJORADA PARA ENVIAR RESTABLECIMIENTO DE CONTRASEÑA CON SOPORTE OFFLINE
+const enviarRestablecimientoContraseña = async (usuario) => {
+  const mensajeConfirmacion = esUsuarioActual(usuario) 
+    ? `¿Enviar enlace de restablecimiento de contraseña a tu email (${usuario.email})?`
+    : `¿Enviar enlace de restablecimiento de contraseña a ${usuario.email}?`;
+  
+  if (!window.confirm(mensajeConfirmacion)) {
+    return;
+  }
+  
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    // Endpoint diferente según si es admin o usuario normal
+    const endpoint = esAdministrador() 
+      ? `${API_URL}/auth/admin-reset-password`
+      : `${API_URL}/auth/forgot-password`;
+    
+    const payload = esAdministrador() 
+      ? { userId: usuario.id }
+      : { email: usuario.email };
+    
+    const response = await axios.post(endpoint, payload, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (response.data.success) {
+      const data = response.data.data;
+      
+      let mensajeExito = '';
+      
+      if (esUsuarioActual(usuario)) {
+        mensajeExito = 'Solicitud de restablecimiento procesada';
+      } else {
+        mensajeExito = `Solicitud de restablecimiento procesada para ${usuario.email}`;
+      }
+      
+      // Agregar información del modo
+      if (data.mode === 'offline') {
+        mensajeExito += ' (modo offline)';
+      }
+      
+      mostrarMensaje(mensajeExito, 'success');
+      
+      // Mostrar información detallada en consola
+      console.log('🔐 INFORMACIÓN DE RESTABLECIMIENTO:');
+      console.log(`👤 Usuario: ${usuario.nombre} (${usuario.email})`);
+      console.log(`🌐 Modo: ${data.mode}`);
+      console.log(`📧 Email enviado: ${data.emailSent ? 'SÍ' : 'NO'}`);
+      
+      if (data.resetLink) {
+        console.log(`🔗 Enlace: ${data.resetLink}`);
+      }
+      
+      if (data.token) {
+        console.log(`🔑 Token: ${data.token}`);
+        console.log('📋 Puedes copiar este token y pegarlo directamente en la URL:');
+        console.log(`   ${window.location.origin}/reset-password/${data.token}`);
+      }
+      
+      console.log('⏰ El token expira en 1 hora');
+      
+    } else {
+      mostrarMensaje(response.data.message || 'Error al procesar la solicitud', 'error');
+    }
+  } catch (err) {
+    console.error('❌ Error en restablecimiento:', err);
+    mostrarMensaje(err.response?.data?.message || 'Error de conexión', 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -581,8 +682,14 @@ const Usuarios = () => {
   };
 
   const handleLogout = () => {
+    // Limpiar todos los datos de autenticación
     localStorage.removeItem('token');
-    navigate('/');
+    localStorage.removeItem('usuario');
+    localStorage.removeItem('userPreferences');
+    sessionStorage.clear();
+    
+    // Redirigir limpiamente al login
+    window.location.href = '/';
   };
 
   const irAPagos = () => {
@@ -601,7 +708,6 @@ const Usuarios = () => {
           {/* CAMPANITA REAL */}
           <NotificationBell />
 
-          
           {user && (
             <>
               <Chip
@@ -611,116 +717,116 @@ const Usuarios = () => {
                 avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
               />
               
-             <Button
-  variant="outlined"
-  startIcon={<LocationOn />}
-  onClick={() => navigate('/locations')}
-  sx={{ 
-    bgcolor: 'rgba(255,255,255,0.9)',
-    color: 'primary.main',
-    borderColor: 'rgba(255,255,255,0.5)',
-    '&:hover': { 
-      bgcolor: 'white',
-      borderColor: 'primary.main',
-      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
-    },
-    '&:active': {
-      transform: 'translateY(1px)'
-    },
-    mr: 2,
-    fontWeight: 600,
-    borderRadius: 2,
-    px: 2,
-    py: 1,
-    transition: 'all 0.3s ease'
-  }}
->
-  Mi Ubicación
-</Button>
+              <Button
+                variant="outlined"
+                startIcon={<LocationOn />}
+                onClick={() => navigate('/locations')}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  color: 'primary.main',
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  '&:hover': { 
+                    bgcolor: 'white',
+                    borderColor: 'primary.main',
+                    boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
+                  },
+                  '&:active': {
+                    transform: 'translateY(1px)'
+                  },
+                  mr: 2,
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1,
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                Mi Ubicación
+              </Button>
 
-{/* Botón para Tienda */}
-<Button
-  variant="outlined"
-  startIcon={<LocationOn />}
-  onClick={() => navigate('/shop')}
-  sx={{ 
-    bgcolor: 'rgba(255,255,255,0.9)',
-    color: 'primary.main',
-    borderColor: 'rgba(255,255,255,0.5)',
-    '&:hover': { 
-      bgcolor: 'white',
-      borderColor: 'primary.main',
-      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
-    },
-    '&:active': {
-      transform: 'translateY(1px)'
-    },
-    mr: 2,
-    fontWeight: 600,
-    borderRadius: 2,
-    px: 2,
-    py: 1,
-    transition: 'all 0.3s ease'
-  }}
->
-  Tienda
-</Button>
+              {/* Botón para Tienda */}
+              <Button
+                variant="outlined"
+                startIcon={<LocationOn />}
+                onClick={() => navigate('/shop')}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  color: 'primary.main',
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  '&:hover': { 
+                    bgcolor: 'white',
+                    borderColor: 'primary.main',
+                    boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
+                  },
+                  '&:active': {
+                    transform: 'translateY(1px)'
+                  },
+                  mr: 2,
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1,
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                Tienda
+              </Button>
 
-{/* Botón para Preferencias de usuario */}
-<Button
-  variant="outlined"
-  onClick={() => navigate('/preferentuser')}
-  sx={{ 
-    bgcolor: 'rgba(255,255,255,0.9)',
-    color: 'primary.main',
-    borderColor: 'rgba(255,255,255,0.5)',
-    '&:hover': { 
-      bgcolor: 'white',
-      borderColor: 'primary.main',
-      boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
-    },
-    '&:active': {
-      transform: 'translateY(1px)'
-    },
-    mr: 2,
-    fontWeight: 600,
-    borderRadius: 2,
-    px: 2,
-    py: 1,
-    transition: 'all 0.3s ease'
-  }}
->
-  Preferencias de usuario
-</Button>
+              {/* Botón para Preferencias de usuario */}
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/preferentuser')}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  color: 'primary.main',
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  '&:hover': { 
+                    bgcolor: 'white',
+                    borderColor: 'primary.main',
+                    boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)'
+                  },
+                  '&:active': {
+                    transform: 'translateY(1px)'
+                  },
+                  mr: 2,
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1,
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                Preferencias de usuario
+              </Button>
 
-{/* Botón para Administrar Pagos (solo admin) */}
-{esAdministrador() && (
-  <Button
-    variant="contained"
-    startIcon={<PaymentIcon />}
-    onClick={irAPagos}
-    sx={{ 
-      bgcolor: 'secondary.main',
-      color: 'white',
-      borderColor: 'secondary.main',
-      '&:hover': { 
-        bgcolor: 'secondary.dark',
-        borderColor: 'secondary.dark',
-        boxShadow: '0 4px 12px rgba(156, 39, 176, 0.4)'
-      },
-      '&:active': {
-        transform: 'translateY(1px)'
-      },
-      mr: 2,
-      fontWeight: 600,
-      borderRadius: 2,
-      px: 2,
-      py: 1,
-      transition: 'all 0.3s ease'
-    }}
-  >
-    Administrar Pagos
-  </Button>
+              {/* Botón para Administrar Pagos (solo admin) */}
+              {esAdministrador() && (
+                <Button
+                  variant="contained"
+                  startIcon={<PaymentIcon />}
+                  onClick={irAPagos}
+                  sx={{ 
+                    bgcolor: 'secondary.main',
+                    color: 'white',
+                    borderColor: 'secondary.main',
+                    '&:hover': { 
+                      bgcolor: 'secondary.dark',
+                      borderColor: 'secondary.dark',
+                      boxShadow: '0 4px 12px rgba(156, 39, 176, 0.4)'
+                    },
+                    '&:active': {
+                      transform: 'translateY(1px)'
+                    },
+                    mr: 2,
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    px: 2,
+                    py: 1,
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Administrar Pagos
+                </Button>
               )}
               
               <Button
@@ -860,6 +966,12 @@ const Usuarios = () => {
                   color={tienePermiso('eliminar') ? 'success' : 'default'}
                   variant={tienePermiso('eliminar') ? 'filled' : 'outlined'}
                 />
+                <Chip
+                  icon={<KeyIcon />}
+                  label="Restablecer Contraseña"
+                  color="warning"
+                  variant="filled"
+                />
                 {esAdministrador() && (
                   <Chip
                     icon={<PaymentIcon />}
@@ -869,6 +981,11 @@ const Usuarios = () => {
                   />
                 )}
               </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {esAdministrador() 
+                  ? 'Puedes restablecer contraseñas de todos los usuarios' 
+                  : 'Puedes restablecer tu propia contraseña'}
+              </Typography>
             </CardContent>
           </Card>
         )}
@@ -934,7 +1051,7 @@ const Usuarios = () => {
           </Fade>
         )}
 
-        {/* Tabla de usuarios */}
+        {/* Tabla de usuarios - CORREGIDA LA ESTRUCTURA */}
         <Card elevation={0} sx={{ borderRadius: 3, border: 1, borderColor: 'divider' }}>
           <Box sx={{ p: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box>
@@ -985,22 +1102,44 @@ const Usuarios = () => {
                 <TableBody>
                   {usuarios.map((usuario) => {
                     const rolInfo = obtenerInfoRol(usuario.rol);
+                    const esMiUsuario = esUsuarioActual(usuario);
+                    const puedeRestablecer = puedeRestablecerContraseña(usuario);
+                    
                     return (
                       <TableRow
                         key={usuario.id}
                         sx={{
                           '&:hover': { bgcolor: 'grey.50' },
-                          '&:last-child td': { border: 0 }
+                          '&:last-child td': { border: 0 },
+                          bgcolor: esMiUsuario ? 'action.hover' : 'transparent'
                         }}
                       >
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+                            <Avatar sx={{ 
+                              bgcolor: esMiUsuario ? 'primary.main' : 'grey.400',
+                              width: 40, 
+                              height: 40 
+                            }}>
                               {getInitials(usuario.nombre)}
+                              {esMiUsuario && (
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    bottom: -2,
+                                    right: -2,
+                                    width: 12,
+                                    height: 12,
+                                    bgcolor: 'success.main',
+                                    borderRadius: '50%',
+                                    border: '2px solid white'
+                                  }}
+                                />
+                              )}
                             </Avatar>
                             <Box>
                               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                {usuario.nombre}
+                                {usuario.nombre} {esMiUsuario && '(Tú)'}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <EmailIcon fontSize="small" sx={{ color: 'grey.500' }} />
@@ -1050,7 +1189,25 @@ const Usuarios = () => {
                               </Tooltip>
                             )}
                             
-                            {tienePermiso('eliminar') ? (
+                            {/* ✅ BOTÓN DE RESTABLECIMIENTO DE CONTRASEÑA (para todos los usuarios según permisos) */}
+                            <Tooltip title={getTooltipRestablecimiento(usuario)}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => enviarRestablecimientoContraseña(usuario)}
+                                  disabled={!puedeRestablecer}
+                                  sx={{ 
+                                    color: puedeRestablecer 
+                                      ? (esMiUsuario ? 'info.main' : 'warning.main') 
+                                      : 'disabled' 
+                                  }}
+                                >
+                                  <KeyIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            
+                            {tienePermiso('eliminar') && !esMiUsuario ? (
                               <Tooltip title="Eliminar usuario">
                                 <IconButton
                                   size="small"
@@ -1061,7 +1218,7 @@ const Usuarios = () => {
                                 </IconButton>
                               </Tooltip>
                             ) : (
-                              <Tooltip title="Sin permisos para eliminar">
+                              <Tooltip title={esMiUsuario ? "No puedes eliminarte a ti mismo" : "Sin permisos para eliminar"}>
                                 <span>
                                   <IconButton size="small" disabled>
                                     <LockIcon fontSize="small" />

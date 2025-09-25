@@ -76,12 +76,14 @@ app.get('/', (req, res) => {
 // Documentación Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+app.use('/api/biometric', biometricRoutes); // ← MOVER ANTES de las rutas con auth
+
+
 // Rutas API
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
 app.use('/api/usuarios', authMiddleware, locationRoutes);
 app.use('/api/preferencias', authMiddleware, preferencesRoutes);
-app.use('/api/biometric', authMiddleware, biometricRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes); // ← NUEVO
 
 // === MANEJO DE ERRORES ===

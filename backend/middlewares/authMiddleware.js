@@ -10,10 +10,18 @@ module.exports = (req, res, next) => {
     '/api/auth/reset-password',
     '/api/pagos/productos',
     '/api/auth/google',
-    '/api/auth/google/callback'
+    '/api/auth/google/callback',
+    '/api/biometric/request-pin-reset',
+    '/api/biometric/verify-reset-code',  
+    '/api/biometric/check-reset-status',
+    '/api/biometric/verify-code-only',
+    '/api/biometric/reset-pin-final',
+    '/api/auth/admin-reset-password'
+     // ✅ AGREGADA
   ];
   
-  if (publicRoutes.some(route => req.path.startsWith(route))) {
+  // Usar includes en lugar de startsWith para coincidencia exacta
+  if (publicRoutes.includes(req.path)) {
     return next();
   }
 

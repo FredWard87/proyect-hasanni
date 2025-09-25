@@ -160,48 +160,50 @@ class UsuarioController {
   }
 
   // PUT /api/usuarios/:id - Actualizar usuario
-  static async actualizarUsuario(req, res) {
-    try {
-      const { id } = req.params;
-      const { nombre, email, rol } = req.body;
-      
-      if (!id || isNaN(parseInt(id))) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID de usuario inválido'
-        });
-      }
-      
-      if (!nombre || !email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Nombre y email son requeridos'
-        });
-      }
-      
-      const usuario = await Usuario.obtenerPorId(parseInt(id));
-      
-      if (!usuario) {
-        return res.status(404).json({
-          success: false,
-          message: 'Usuario no encontrado'
-        });
-      }
-      
-      // Guardar datos antiguos para la notificación ← NUEVO
-      const datosAntiguos = {
-        nombre: usuario.nombre,
-        email: usuario.email,
-        rol: usuario.rol
-      };
-      
-      usuario.nombre = nombre.trim();
-      usuario.email = email.trim();
-      usuario.rol = rol || usuario.rol;
-      
-      await usuario.actualizar();
+ // PUT /api/usuarios/:id - Actualizar usuario
+static async actualizarUsuario(req, res) {
+  try {
+    const { id } = req.params;
+    const { nombre, email, rol } = req.body;
+    
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de usuario inválido'
+      });
+    }
+    
+    if (!nombre || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nombre y email son requeridos'
+      });
+    }
+    
+    const usuario = await Usuario.obtenerPorId(parseInt(id));
+    
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+    
+    // Guardar datos antiguos para la notificación
+    const datosAntiguos = {
+      nombre: usuario.nombre,
+      email: usuario.email,
+      rol: usuario.rol
+    };
+    
+    usuario.nombre = nombre.trim();
+    usuario.email = email.trim();
+    usuario.rol = rol || usuario.rol;
+    
+    await usuario.actualizar();
 
-      // Notificar al usuario sobre los cambios ← NUEVO
+    // ✅ SOLUCIÓN: Verificar si req.user existe antes de usarlo
+    if (req.user && req.user.userId) {
       await notificationMiddleware.onUserDataModified(
         req.user.userId,
         usuario.id,
@@ -215,27 +217,28 @@ class UsuarioController {
           administrador: req.user.nombre || 'Sistema'
         }
       );
-      
-      res.json({
-        success: true,
-        message: 'Usuario actualizado exitosamente',
-        data: {
-          id: usuario.id,
-          nombre: usuario.nombre,
-          email: usuario.email,
-          rol: usuario.rol,
-          fecha_creacion: usuario.fecha_creacion
-        }
-      });
-      
-    } catch (error) {
-      console.error('Error al actualizar usuario:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
     }
+    
+    res.json({
+      success: true,
+      message: 'Usuario actualizado exitosamente',
+      data: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol,
+        fecha_creacion: usuario.fecha_creacion
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
+}
 
   // DELETE /api/usuarios/:id - Eliminar usuario
   static async eliminarUsuario(req, res) {

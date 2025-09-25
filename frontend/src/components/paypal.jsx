@@ -69,7 +69,7 @@ const PaymentCallback = ({ type }) => {
       
       // Redirigir después de 5 segundos
       setTimeout(() => {
-        navigate('/shop');
+        navigate('/Usuarios');
       }, 5000);
     }
   };
