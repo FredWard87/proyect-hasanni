@@ -1,27 +1,20 @@
-// controllers/locationController.js
-const Usuario = require('../models/Usuario');
-const notificationMiddleware = require('../middlewares/notificationMiddleware');
+const { query } = require('../config/database');
 
 class LocationController {
   
   // POST /api/usuarios/ubicacion - Actualizar ubicación
   static async updateLocation(req, res) {
     try {
-      // ✅ CORREGIDO: Verificar que req.user existe
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Usuario no autenticado'
-        });
-      }
-
       const userId = req.user.userId;
       const { latitude, longitude, accuracy, timestamp } = req.body;
       
-      console.log('📍 Actualizando ubicación para usuario:', userId);
-      console.log('📊 Datos recibidos:', { latitude, longitude, accuracy, timestamp });
-      
-      // Validaciones mejoradas
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'Latitude y longitude son requeridos'
+        });
+      }
+
       if (typeof latitude !== 'number' || isNaN(latitude) || 
           typeof longitude !== 'number' || isNaN(longitude)) {
         return res.status(400).json({
@@ -30,7 +23,6 @@ class LocationController {
         });
       }
 
-      // Validar rangos de coordenadas
       if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
         return res.status(400).json({
           success: false,
@@ -38,38 +30,38 @@ class LocationController {
         });
       }
 
-      // Actualizar ubicación en la base de datos
-      await Usuario.actualizarUbicacion(userId, {
-        latitude,
-        longitude,
-        accuracy: accuracy || 0,
-        timestamp: timestamp || new Date().toISOString()
-      });
-
-      // Notificar al usuario sobre la actualización de ubicación
-      await notificationMiddleware.onUserDataModified(
-        req.user.userId,
-        userId,
-        { tipo: 'ubicacion', mensaje: 'Ubicación actualizada correctamente' }
+      const result = await query(
+        `UPDATE usuarios 
+         SET current_latitude = $1, current_longitude = $2, 
+             accuracy = $3, last_location_update = $4
+         WHERE id = $5 
+         RETURNING id, nombre, current_latitude, current_longitude, last_location_update`,
+        [latitude, longitude, accuracy || 0, timestamp || new Date(), userId]
       );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
 
       res.json({
         success: true,
         message: 'Ubicación actualizada exitosamente',
         data: {
-          latitude,
-          longitude,
+          latitude: result.rows[0].current_latitude,
+          longitude: result.rows[0].current_longitude,
           accuracy: accuracy || 0,
-          timestamp: timestamp || new Date().toISOString()
+          timestamp: result.rows[0].last_location_update
         }
       });
 
     } catch (error) {
-      console.error('❌ Error al actualizar ubicación:', error);
+      console.error('Error al actualizar ubicación:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al actualizar ubicación',
-        error: error.message
+        message: 'Error al actualizar ubicación'
       });
     }
   }
@@ -77,24 +69,29 @@ class LocationController {
   // GET /api/usuarios/mi-ubicacion - Obtener mi ubicación actual
   static async getMyLocation(req, res) {
     try {
-      // ✅ CORREGIDO: Verificar que req.user existe
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Usuario no autenticado'
-        });
-      }
-
+      console.log('=== GET MY LOCATION DEBUG ===');
+      console.log('req.user:', req.user);
+      console.log('userId:', req.user?.userId);
+      
       const userId = req.user.userId;
       
-      const usuario = await Usuario.obtenerPorId(userId);
+      const result = await query(
+        `SELECT id, nombre, current_latitude, current_longitude, 
+                accuracy, last_location_update, fecha_creacion
+         FROM usuarios WHERE id = $1`,
+        [userId]
+      );
       
-      if (!usuario) {
+      console.log('SQL result:', result.rows);
+      
+      if (result.rows.length === 0) {
         return res.status(404).json({
           success: false,
           message: 'Usuario no encontrado'
         });
       }
+
+      const usuario = result.rows[0];
 
       if (!usuario.current_latitude || !usuario.current_longitude) {
         return res.status(404).json({
@@ -102,38 +99,33 @@ class LocationController {
           message: 'No se ha registrado ubicación para este usuario'
         });
       }
-      
+
       res.json({
         success: true,
         data: {
-          latitude: usuario.current_latitude,
-          longitude: usuario.current_longitude,
-          accuracy: usuario.ubicacion_accuracy || 0,
-          lastUpdate: usuario.ubicacion_actualizada || usuario.fecha_creacion
+          latitude: parseFloat(usuario.current_latitude),
+          longitude: parseFloat(usuario.current_longitude),
+          accuracy: usuario.accuracy || 0,
+          lastUpdate: usuario.last_location_update || usuario.fecha_creacion
         }
       });
       
     } catch (error) {
-      console.error('❌ Error al obtener ubicación:', error);
+      console.error('Error al obtener ubicación:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al obtener ubicación',
-        error: error.message
+        message: 'Error al obtener ubicación'
       });
     }
   }
 
-  // GET /api/usuarios/cercanos - Obtener usuarios cercanos (solo admins)
+  // GET /api/usuarios/cercanos - Obtener usuarios cercanos
   static async getNearbyUsers(req, res) {
     try {
-      // ✅ CORREGIDO: Verificar que req.user existe y es admin
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Usuario no autenticado'
-        });
-      }
-
+      console.log('=== GET NEARBY USERS DEBUG ===');
+      console.log('req.user:', req.user);
+      console.log('rol:', req.user?.rol);
+      
       if (req.user.rol !== 'admin') {
         return res.status(403).json({
           success: false,
@@ -143,42 +135,36 @@ class LocationController {
 
       const { radius = 10 } = req.query;
       
-      // Obtener todos los usuarios con ubicación
-      const usuarios = await Usuario.obtenerTodos();
-      
-      // Filtrar usuarios con ubicación válida
-      const usuariosConUbicacion = usuarios.filter(user => 
-        user.current_latitude && user.current_longitude
+      const result = await query(
+        `SELECT id, nombre, email, current_latitude, current_longitude, 
+                accuracy, last_location_update, rol
+         FROM usuarios 
+         WHERE current_latitude IS NOT NULL AND current_longitude IS NOT NULL`
       );
-
+      
       res.json({
         success: true,
-        data: usuariosConUbicacion,
-        total: usuariosConUbicacion.length,
+        data: result.rows,
+        total: result.rows.length,
         radius: parseFloat(radius)
       });
       
     } catch (error) {
-      console.error('❌ Error al obtener usuarios cercanos:', error);
+      console.error('Error al obtener usuarios cercanos:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al obtener usuarios cercanos',
-        error: error.message
+        message: 'Error al obtener usuarios cercanos'
       });
     }
   }
 
-  // GET /api/usuarios/estadisticas-ubicacion - Estadísticas de ubicación (solo admins)
+  // GET /api/usuarios/estadisticas-ubicacion - Estadísticas de ubicación
   static async getLocationStats(req, res) {
     try {
-      // ✅ CORREGIDO: Verificar que req.user existe y es admin
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Usuario no autenticado'
-        });
-      }
-
+      console.log('=== GET LOCATION STATS DEBUG ===');
+      console.log('req.user:', req.user);
+      console.log('rol:', req.user?.rol);
+      
       if (req.user.rol !== 'admin') {
         return res.status(403).json({
           success: false,
@@ -186,77 +172,84 @@ class LocationController {
         });
       }
 
-      const usuarios = await Usuario.obtenerTodos();
+      const { radius = 10 } = req.query;
+      const radiusNum = parseFloat(radius);
       
-      // Calcular estadísticas
+      if (isNaN(radiusNum) || radiusNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'El parámetro radius debe ser un número mayor que 0'
+        });
+      }
+
+      const usuariosResult = await query(
+        'SELECT id, nombre, email, current_latitude, current_longitude, last_location_update, fecha_creacion FROM usuarios'
+      );
+      
+      const usuarios = usuariosResult.rows;
       const usuariosConUbicacion = usuarios.filter(user => 
         user.current_latitude && user.current_longitude
       );
 
       const usuariosActivos24h = usuariosConUbicacion.filter(user => {
-        const lastUpdate = new Date(user.ubicacion_actualizada || user.fecha_creacion);
-        const now = new Date();
-        const diffHours = (now - lastUpdate) / (1000 * 60 * 60);
-        return diffHours <= 24;
-      });
-
-      // Agrupar por región (simplificado)
-      const regiones = {};
-      usuariosConUbicacion.forEach(user => {
-        // Simulación de agrupación por coordenadas aproximadas
-        const regionKey = user.current_latitude.toFixed(1) + ',' + user.current_longitude.toFixed(1);
-        regiones[regionKey] = (regiones[regionKey] || 0) + 1;
+        try {
+          const lastUpdate = new Date(user.last_location_update || user.fecha_creacion);
+          const now = new Date();
+          const diffHours = (now - lastUpdate) / (1000 * 60 * 60);
+          return diffHours <= 24;
+        } catch (error) {
+          return false;
+        }
       });
 
       res.json({
         success: true,
         data: {
+          totalUsuarios: usuarios.length,
           totalUsuariosConUbicacion: usuariosConUbicacion.length,
           usuariosActivos24h: usuariosActivos24h.length,
+          usuariosSinUbicacion: usuarios.length - usuariosConUbicacion.length,
           promedioActualizacionesDiarias: usuariosConUbicacion.length > 0 ? 
-            (usuariosActivos24h.length / usuariosConUbicacion.length).toFixed(1) : 0,
-          regiones: regiones,
-          totalUsuarios: usuarios.length
-        }
+            parseFloat((usuariosActivos24h.length / usuariosConUbicacion.length).toFixed(2)) : 0,
+          radius: radiusNum,
+          lastUpdated: new Date().toISOString()
+        },
+        message: 'Estadísticas de ubicación obtenidas exitosamente'
       });
       
     } catch (error) {
-      console.error('❌ Error al obtener estadísticas de ubicación:', error);
+      console.error('Error al obtener estadísticas de ubicación:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al obtener estadísticas de ubicación',
-        error: error.message
+        message: 'Error al obtener estadísticas de ubicación'
       });
     }
   }
 
-  // DELETE /api/usuarios/ubicacion - Eliminar datos de ubicación del usuario
+  // DELETE /api/usuarios/ubicacion - Eliminar datos de ubicación
   static async deleteLocation(req, res) {
     try {
-      // ✅ CORREGIDO: Verificar que req.user existe
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Usuario no autenticado'
-        });
-      }
-
+      console.log('=== DELETE LOCATION DEBUG ===');
+      console.log('req.user:', req.user);
+      console.log('userId:', req.user?.userId);
+      
       const userId = req.user.userId;
       
-      // Eliminar ubicación estableciendo valores a null
-      await Usuario.actualizarUbicacion(userId, {
-        latitude: null,
-        longitude: null,
-        accuracy: null,
-        timestamp: null
-      });
-
-      // Notificar eliminación de ubicación
-      await notificationMiddleware.onUserDataModified(
-        req.user.userId,
-        userId,
-        { tipo: 'ubicacion_eliminada', mensaje: 'Datos de ubicación eliminados' }
+      const result = await query(
+        `UPDATE usuarios 
+         SET current_latitude = NULL, current_longitude = NULL, 
+             accuracy = NULL, last_location_update = NULL
+         WHERE id = $1 
+         RETURNING id, nombre`,
+        [userId]
       );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
 
       res.json({
         success: true,
@@ -264,11 +257,10 @@ class LocationController {
       });
       
     } catch (error) {
-      console.error('❌ Error al eliminar ubicación:', error);
+      console.error('Error al eliminar ubicación:', error);
       res.status(500).json({
         success: false,
-        message: 'Error al eliminar datos de ubicación',
-        error: error.message
+        message: 'Error al eliminar datos de ubicación'
       });
     }
   }

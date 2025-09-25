@@ -1351,7 +1351,7 @@ paths:
   # ENDPOINTS DE PREFERENCIAS
   # =============================================
 
-  /usuarios/preferencias:
+  /preferencias:
     get:
       tags: [Preferencias]
       summary: Obtener preferencias del usuario
@@ -1411,7 +1411,7 @@ paths:
         '401':
           description: No autorizado
 
-  /usuarios/preferencias/reset:
+  /preferencias/reset:
     post:
       tags: [Preferencias]
       summary: Restablecer preferencias por defecto
@@ -1437,39 +1437,8 @@ paths:
         '500':
           description: Error interno del servidor
 
-  /usuarios/preferencias/specific:
-    put:
-      tags: [Preferencias]
-      summary: Actualizar preferencia específica
-      description: Actualiza una preferencia específica del usuario
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PreferenciasEspecificas'
-      responses:
-        '200':
-          description: Preferencia actualizada exitosamente
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/PreferenciasUsuario'
-                  message:
-                    type: string
-                    example: Preferencia actualizada exitosamente
-        '400':
-          description: Error de validación
-        '401':
-          description: No autorizado
 
-  /usuarios/preferencias/export:
+  /preferencias/export:
     get:
       tags: [Preferencias]
       summary: Exportar preferencias del usuario
@@ -1507,7 +1476,7 @@ paths:
   # ENDPOINTS DE GEOLOCALIZACIÓN
   # =============================================
 
-  /usuarios/ubicacion:
+  /location/ubicacion:
     post:
       tags: [Geolocalización]
       summary: Actualizar ubicación del usuario
@@ -1575,7 +1544,7 @@ paths:
         '500':
           description: Error interno del servidor
 
-  /usuarios/mi-ubicacion:
+  /location/mi-ubicacion:
     get:
       tags: [Geolocalización]
       summary: Obtener mi ubicación actual
@@ -1622,7 +1591,7 @@ paths:
         '401':
           description: No autorizado
 
-  /usuarios/estadisticas-ubicacion:
+  /location/estadisticas-ubicacion:
     get:
       tags: [Geolocalización, Administración]
       summary: Estadísticas de ubicación (Admin)

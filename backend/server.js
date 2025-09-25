@@ -16,13 +16,13 @@ const apiRoutes = require('./routes/UsuarioRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const preferencesRoutes = require('./routes/preferencesRoutes');
 const biometricRoutes = require('./routes/biometricRoutes');
-const notificationRoutes = require('./routes/notificationRoutes'); // ← NUEVO
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Middleware de autenticación
 const authMiddleware = require('./middlewares/authMiddleware');
 
 // Servicio de notificaciones
-const notificationService = require('./services/notificationService'); // ← NUEVO
+const notificationService = require('./services/notificationService');
 
 // Crear aplicación Express
 const app = express();
@@ -68,7 +68,7 @@ app.get('/', (req, res) => {
       roles: '/api/usuarios/roles',
       estadisticas: '/api/usuarios/estadisticas',
       documentation: '/api-docs',
-      notifications: '/api/notifications' // ← NUEVO
+      notifications: '/api/notifications'
     }
   });
 });
@@ -76,15 +76,17 @@ app.get('/', (req, res) => {
 // Documentación Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-app.use('/api/biometric', biometricRoutes); // ← MOVER ANTES de las rutas con auth
-
+// Rutas públicas (sin autenticación)
+app.use('/api/biometric', biometricRoutes);
 
 // Rutas API
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
-app.use('/api/usuarios', authMiddleware, locationRoutes);
-app.use('/api/preferencias', authMiddleware, preferencesRoutes);
-app.use('/api/notifications', authMiddleware, notificationRoutes); // ← NUEVO
+
+// ✅ CORREGIDO: SOLO UNA línea para cada ruta - ELIMINADO DUPLICADO
+app.use('/api/location', authMiddleware, locationRoutes);  // Maneja /api/location/*
+app.use('/api/preferencias', preferencesRoutes);
+app.use('/api/notifications', authMiddleware, notificationRoutes);
 
 // === MANEJO DE ERRORES ===
 
@@ -140,10 +142,10 @@ const iniciarServidor = async () => {
     await testConnection();
     
     // Iniciar servidor HTTP para Socket.IO
-    const server = require('http').createServer(app); // ← MODIFICADO
+    const server = require('http').createServer(app);
     
     // Inicializar servicio de notificaciones
-    notificationService.initialize(server); // ← NUEVO
+    notificationService.initialize(server);
     
     // Iniciar servidor
     server.listen(PORT, () => {
@@ -155,7 +157,7 @@ const iniciarServidor = async () => {
       console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
-      console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`); // ← NUEVO
+      console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
       console.log(`🌍 CORS habilitado para: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log('🚀 ===============================================');

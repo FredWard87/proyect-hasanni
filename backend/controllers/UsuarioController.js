@@ -1,5 +1,5 @@
 const Usuario = require('../models/Usuario');
-const notificationMiddleware = require('../middlewares/notificationMiddleware'); // ← NUEVO
+const notificationMiddleware = require('../middlewares/notificationMiddleware');
 
 class UsuarioController {
   
@@ -27,48 +27,6 @@ class UsuarioController {
     }
   }
 
-  // POST /api/usuarios/ubicacion - Actualizar ubicación
-  static async actualizarUbicacion(req, res) {
-    try {
-      const userId = req.user.userId;
-      const { latitude, longitude, accuracy, timestamp } = req.body;
-      
-      if (typeof latitude !== 'number' || typeof longitude !== 'number' || typeof accuracy !== 'number') {
-        return res.status(400).json({
-          success: false,
-          message: 'Datos de ubicación inválidos'
-        });
-      }
-
-      // Actualizar ubicación en la base de datos
-      await Usuario.actualizarUbicacion(userId, {
-        latitude,
-        longitude,
-        accuracy,
-        timestamp
-      });
-
-      // Notificar al usuario sobre la actualización de ubicación ← NUEVO
-      await notificationMiddleware.onUserDataModified(
-        req.user.userId,
-        userId,
-        { tipo: 'ubicacion', mensaje: 'Ubicación actualizada correctamente' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Ubicación actualizada exitosamente'
-      });
-
-    } catch (error) {
-      console.error('Error al actualizar ubicación:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al actualizar ubicación',
-        error: error.message
-      });
-    }
-  }
 
   // GET /api/usuarios/:id - Obtener usuario por ID
   static async obtenerUsuarioPorId(req, res) {
@@ -130,7 +88,7 @@ class UsuarioController {
         fecha_creacion: usuario.fecha_creacion
       };
 
-      // Notificar al administrador sobre nuevo usuario ← NUEVO
+      // Notificar al administrador sobre nuevo usuario
       if (req.user && req.user.rol === 'admin') {
         await notificationMiddleware.onUserDataModified(
           req.user.userId,
@@ -160,85 +118,84 @@ class UsuarioController {
   }
 
   // PUT /api/usuarios/:id - Actualizar usuario
- // PUT /api/usuarios/:id - Actualizar usuario
-static async actualizarUsuario(req, res) {
-  try {
-    const { id } = req.params;
-    const { nombre, email, rol } = req.body;
-    
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID de usuario inválido'
-      });
-    }
-    
-    if (!nombre || !email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nombre y email son requeridos'
-      });
-    }
-    
-    const usuario = await Usuario.obtenerPorId(parseInt(id));
-    
-    if (!usuario) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
-    }
-    
-    // Guardar datos antiguos para la notificación
-    const datosAntiguos = {
-      nombre: usuario.nombre,
-      email: usuario.email,
-      rol: usuario.rol
-    };
-    
-    usuario.nombre = nombre.trim();
-    usuario.email = email.trim();
-    usuario.rol = rol || usuario.rol;
-    
-    await usuario.actualizar();
-
-    // ✅ SOLUCIÓN: Verificar si req.user existe antes de usarlo
-    if (req.user && req.user.userId) {
-      await notificationMiddleware.onUserDataModified(
-        req.user.userId,
-        usuario.id,
-        { 
-          tipo: 'actualizacion_perfil',
-          cambios: {
-            nombre: { de: datosAntiguos.nombre, a: usuario.nombre },
-            email: { de: datosAntiguos.email, a: usuario.email },
-            rol: { de: datosAntiguos.rol, a: usuario.rol }
-          },
-          administrador: req.user.nombre || 'Sistema'
-        }
-      );
-    }
-    
-    res.json({
-      success: true,
-      message: 'Usuario actualizado exitosamente',
-      data: {
-        id: usuario.id,
+  static async actualizarUsuario(req, res) {
+    try {
+      const { id } = req.params;
+      const { nombre, email, rol } = req.body;
+      
+      if (!id || isNaN(parseInt(id))) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de usuario inválido'
+        });
+      }
+      
+      if (!nombre || !email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nombre y email son requeridos'
+        });
+      }
+      
+      const usuario = await Usuario.obtenerPorId(parseInt(id));
+      
+      if (!usuario) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+      
+      // Guardar datos antiguos para la notificación
+      const datosAntiguos = {
         nombre: usuario.nombre,
         email: usuario.email,
-        rol: usuario.rol,
-        fecha_creacion: usuario.fecha_creacion
+        rol: usuario.rol
+      };
+      
+      usuario.nombre = nombre.trim();
+      usuario.email = email.trim();
+      usuario.rol = rol || usuario.rol;
+      
+      await usuario.actualizar();
+
+      // Verificar si req.user existe antes de usarlo
+      if (req.user && req.user.userId) {
+        await notificationMiddleware.onUserDataModified(
+          req.user.userId,
+          usuario.id,
+          { 
+            tipo: 'actualizacion_perfil',
+            cambios: {
+              nombre: { de: datosAntiguos.nombre, a: usuario.nombre },
+              email: { de: datosAntiguos.email, a: usuario.email },
+              rol: { de: datosAntiguos.rol, a: usuario.rol }
+            },
+            administrador: req.user.nombre || 'Sistema'
+          }
+        );
       }
-    });
-    
-  } catch (error) {
-    console.error('Error al actualizar usuario:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+      
+      res.json({
+        success: true,
+        message: 'Usuario actualizado exitosamente',
+        data: {
+          id: usuario.id,
+          nombre: usuario.nombre,
+          email: usuario.email,
+          rol: usuario.rol,
+          fecha_creacion: usuario.fecha_creacion
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error al actualizar usuario:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
   }
-}
 
   // DELETE /api/usuarios/:id - Eliminar usuario
   static async eliminarUsuario(req, res) {
@@ -261,7 +218,7 @@ static async actualizarUsuario(req, res) {
         });
       }
       
-      // Guardar información para la notificación ← NUEVO
+      // Guardar información para la notificación
       const usuarioEliminado = {
         id: usuario.id,
         nombre: usuario.nombre,
@@ -270,7 +227,7 @@ static async actualizarUsuario(req, res) {
       
       await usuario.eliminar();
 
-      // Notificar a administradores sobre eliminación ← NUEVO
+      // Notificar a administradores sobre eliminación
       await notificationMiddleware.onUserDataModified(
         req.user.userId,
         usuario.id,

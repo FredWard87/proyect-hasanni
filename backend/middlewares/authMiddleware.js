@@ -2,6 +2,10 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 module.exports = (req, res, next) => {
+  console.log('🔐 === AUTH MIDDLEWARE START ===');
+  console.log('📝 Path:', req.path);
+  console.log('🔍 Headers authorization:', req.headers.authorization ? 'Present' : 'Missing');
+
   // Excluir rutas públicas de la autenticación
   const publicRoutes = [
     '/api/auth/login', 
@@ -17,17 +21,17 @@ module.exports = (req, res, next) => {
     '/api/biometric/verify-code-only',
     '/api/biometric/reset-pin-final',
     '/api/auth/admin-reset-password'
-     // ✅ AGREGADA
   ];
   
-  // Usar includes en lugar de startsWith para coincidencia exacta
   if (publicRoutes.includes(req.path)) {
+    console.log('✅ Ruta pública, skipping auth');
     return next();
   }
 
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('❌ No token provided');
     return res.status(401).json({ 
       success: false,
       message: 'Token no proporcionado' 
@@ -37,11 +41,30 @@ module.exports = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   
   try {
+    console.log('🔑 Verifying token...');
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    
+    console.log('✅ Token decodificado:', {
+      userId: decoded.userId,
+      email: decoded.email,
+      rol: decoded.rol
+    });
+    
+    // ✅ CORREGIDO: Estructura SIMPLE y consistente
+    req.user = {
+      userId: parseInt(decoded.userId), // ✅ Asegurar que sea número
+      email: decoded.email,
+      rol: decoded.rol,
+      nombre: decoded.nombre
+    };
+
+    console.log('👤 Usuario establecido en req.user:', req.user);
+    console.log('🔐 === AUTH MIDDLEWARE END ===');
+    
     next();
   } catch (err) {
-    // Manejar diferentes tipos de errores del token
+    console.error('❌ Error verifying token:', err.message);
+    
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ 
         success: false,
