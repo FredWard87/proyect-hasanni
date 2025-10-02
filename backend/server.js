@@ -17,6 +17,10 @@ const locationRoutes = require('./routes/locationRoutes');
 const preferencesRoutes = require('./routes/preferencesRoutes');
 const biometricRoutes = require('./routes/biometricRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const excelReportRoutes = require('./routes/excelReportRoutes');
+
 
 // Middleware de autenticación
 const authMiddleware = require('./middlewares/authMiddleware');
@@ -68,7 +72,10 @@ app.get('/', (req, res) => {
       roles: '/api/usuarios/roles',
       estadisticas: '/api/usuarios/estadisticas',
       documentation: '/api-docs',
-      notifications: '/api/notifications'
+      notifications: '/api/notifications',
+      // NUEVOS ENDPOINTS DE INVENTARIO
+      inventario: '/api/inventario',
+      reportes: '/api/reportes'
     }
   });
 });
@@ -83,10 +90,16 @@ app.use('/api/biometric', biometricRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
 
-// ✅ CORREGIDO: SOLO UNA línea para cada ruta - ELIMINADO DUPLICADO
-app.use('/api/location', authMiddleware, locationRoutes);  // Maneja /api/location/*
+// Rutas con autenticación
+app.use('/api/location', authMiddleware, locationRoutes);
 app.use('/api/preferencias', preferencesRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
+
+// ✅ RUTAS DE INVENTARIO - ELIMINADA LA LÍNEA DE supplierRoutes
+app.use('/api/inventario', authMiddleware, inventoryRoutes);
+app.use('/api/reportes', authMiddleware, reportRoutes);
+app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
+
 
 // === MANEJO DE ERRORES ===
 
@@ -158,6 +171,8 @@ const iniciarServidor = async () => {
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
       console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
+      console.log(`📦 Inventario API: http://localhost:${PORT}/api/inventario`);
+      console.log(`📊 Reportes API: http://localhost:${PORT}/api/reportes`);
       console.log(`🌍 CORS habilitado para: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log('🚀 ===============================================');

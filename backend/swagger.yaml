@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: API de Gestión de Usuarios y Pagos
-  version: 2.0.0
-  description: API RESTful para la gestión de usuarios con roles, permisos, autenticación y sistema de pagos PayPal
+  title: API de Gestión de Usuarios, Pagos e Inventario
+  version: 3.0.0
+  description: API RESTful para la gestión de usuarios con roles, permisos, autenticación, sistema de pagos PayPal y gestión completa de inventario
   contact:
     name: Soporte API
     email: soporte@empresa.com
@@ -28,6 +28,10 @@ tags:
     description: Gestión de ubicación de usuarios
   - name: Biometría
     description: Autenticación biométrica con PIN
+  - name: Inventario
+    description: Sistema completo de gestión de inventario
+  - name: Reportes
+    description: Reportes y análisis del sistema
 
 paths:
   /health:
@@ -66,6 +70,9 @@ paths:
                       documentation:
                         type: string
                         example: /api-docs
+                      inventario:
+                        type: string
+                        example: /api/inventario
 
   # =============================================
   # ENDPOINTS DE AUTENTICACIÓN
@@ -186,7 +193,6 @@ paths:
                     example:
                       - El email es obligatorio
                       - La contraseña es obligatoria
-  # Añadir estas rutas a la sección de paths en swagger.yaml
 
   /auth/logout:
     post:
@@ -1437,7 +1443,6 @@ paths:
         '500':
           description: Error interno del servidor
 
-
   /preferencias/export:
     get:
       tags: [Preferencias]
@@ -2025,6 +2030,746 @@ paths:
                     type: string
                     example: Código de verificación incorrecto o expirado
 
+  # =============================================
+  # ENDPOINTS DE INVENTARIO
+  # =============================================
+
+  /inventario:
+    get:
+      tags: [Inventario]
+      summary: Obtener inventario completo
+      description: Retorna la lista completa de productos con información de stock
+      responses:
+        '200':
+          description: Inventario obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductoInventario'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/low-stock:
+    get:
+      tags: [Inventario]
+      summary: Obtener productos con stock bajo
+      description: Retorna productos que tienen stock por debajo del mínimo establecido
+      responses:
+        '200':
+          description: Productos con stock bajo obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductoInventario'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/dashboard:
+    get:
+      tags: [Inventario]
+      summary: Obtener dashboard de inventario
+      description: Retorna métricas y resumen del estado del inventario
+      responses:
+        '200':
+          description: Dashboard obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      resumen:
+                        type: object
+                        properties:
+                          total_productos:
+                            type: integer
+                            example: 25
+                          productos_stock_bajo:
+                            type: integer
+                            example: 3
+                          productos_sin_stock:
+                            type: integer
+                            example: 1
+                          stock_promedio:
+                            type: number
+                            format: float
+                            example: 45.2
+                          valor_total_inventario:
+                            type: number
+                            format: float
+                            example: 12500.75
+                      lowStock:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProductoInventario'
+                      recentMovements:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MovimientoInventario'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/movements:
+    get:
+      tags: [Inventario]
+      summary: Obtener historial de movimientos
+      description: Retorna el historial de movimientos de inventario con filtros opcionales
+      parameters:
+        - name: tipo
+          in: query
+          schema:
+            type: string
+            enum: [entrada, salida]
+          description: Filtrar por tipo de movimiento
+        - name: id_producto
+          in: query
+          schema:
+            type: integer
+          description: Filtrar por ID de producto
+        - name: fecha_desde
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filtrar desde fecha (YYYY-MM-DD)
+        - name: fecha_hasta
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filtrar hasta fecha (YYYY-MM-DD)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+          description: Límite de resultados
+      responses:
+        '200':
+          description: Historial de movimientos obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MovimientoInventario'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/usuarios-movimientos:
+    get:
+      tags: [Inventario]
+      summary: Obtener usuarios para movimientos
+      description: Retorna lista de usuarios para usar en movimientos de salida
+      responses:
+        '200':
+          description: Usuarios obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        nombre:
+                          type: string
+                          example: "Juan Pérez"
+                        email:
+                          type: string
+                          example: "juan@email.com"
+                        rol:
+                          type: string
+                          example: "usuario"
+                        display_text:
+                          type: string
+                          example: "Juan Pérez (juan@email.com) - usuario"
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/proveedores:
+    get:
+      tags: [Inventario]
+      summary: Obtener lista de proveedores
+      description: Retorna todos los proveedores activos del sistema
+      responses:
+        '200':
+          description: Proveedores obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Proveedor'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/entries:
+    post:
+      tags: [Inventario]
+      summary: Registrar entrada de inventario
+      description: Registra una entrada de productos al inventario (compra/reabastecimiento)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MovimientoEntradaInput'
+      responses:
+        '200':
+          description: Entrada registrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/MovimientoInventario'
+                  message:
+                    type: string
+                    example: Entrada registrada exitosamente
+        '400':
+          description: Error en los datos de entrada
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/exits:
+    post:
+      tags: [Inventario]
+      summary: Registrar salida de inventario
+      description: Registra una salida de productos del inventario (venta/consumo)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MovimientoSalidaInput'
+      responses:
+        '200':
+          description: Salida registrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/MovimientoInventario'
+                  message:
+                    type: string
+                    example: Salida registrada exitosamente
+        '400':
+          description: Error en los datos de salida o stock insuficiente
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/proveedores:
+    post:
+      tags: [Inventario]
+      summary: Crear nuevo proveedor
+      description: Crea un nuevo proveedor en el sistema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveedorInput'
+      responses:
+        '201':
+          description: Proveedor creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Proveedor'
+                  message:
+                    type: string
+                    example: Proveedor creado exitosamente
+        '400':
+          description: Error de validación
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/products/{id}:
+    put:
+      tags: [Inventario]
+      summary: Actualizar producto
+      description: Actualiza la información de un producto existente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoUpdateInput'
+      responses:
+        '200':
+          description: Producto actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ProductoInventario'
+                  message:
+                    type: string
+                    example: Producto actualizado exitosamente
+        '400':
+          description: Error de validación
+        '404':
+          description: Producto no encontrado
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /inventario/proveedores/{id}:
+    put:
+      tags: [Inventario]
+      summary: Actualizar proveedor
+      description: Actualiza la información de un proveedor existente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveedorInput'
+      responses:
+        '200':
+          description: Proveedor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Proveedor'
+                  message:
+                    type: string
+                    example: Proveedor actualizado exitosamente
+        '400':
+          description: Error de validación
+        '404':
+          description: Proveedor no encontrado
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  # =============================================
+  # ENDPOINTS DE REPORTES
+  # =============================================
+  # Agregar estos endpoints en la sección de paths, después de los endpoints existentes de reportes
+
+  /reportes/excel/inventario:
+    get:
+      tags: [Reportes]
+      summary: Generar reporte de inventario en Excel
+      description: Genera y descarga un reporte completo de inventario en formato Excel con múltiples hojas
+      parameters:
+        - name: incluir_stock_bajo
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Incluir sección de productos con stock bajo
+        - name: incluir_metricas
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Incluir hoja de métricas y resumen
+      responses:
+        '200':
+          description: Reporte de inventario en Excel generado exitosamente
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="reporte_inventario_2024-01-15.xlsx"'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/excel/movimientos:
+    get:
+      tags: [Reportes]
+      summary: Generar reporte de movimientos en Excel
+      description: Genera reporte detallado de movimientos de inventario en Excel con resumen por día
+      parameters:
+        - name: fecha_inicio
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Fecha de inicio del período (YYYY-MM-DD)
+        - name: fecha_fin
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Fecha de fin del período (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Reporte de movimientos en Excel generado exitosamente
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="reporte_movimientos_2024-01-01_a_2024-01-15.xlsx"'
+        '400':
+          description: Fechas inválidas o faltantes
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/excel/productos-movidos:
+    get:
+      tags: [Reportes]
+      summary: Generar reporte de productos más movidos en Excel
+      description: Genera reporte de los productos con mayor actividad en movimientos
+      parameters:
+        - name: dias
+          in: query
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 365
+          description: Período en días para el análisis
+        - name: limite
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+          description: Límite de productos a incluir en el reporte
+      responses:
+        '200':
+          description: Reporte de productos más movidos en Excel generado exitosamente
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="reporte_productos_movidos_30dias.xlsx"'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/excel/completo:
+    get:
+      tags: [Reportes]
+      summary: Generar reporte completo del sistema en Excel
+      description: Genera un reporte completo que incluye inventario, movimientos y productos más movidos
+      parameters:
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de inicio para movimientos (opcional)
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de fin para movimientos (opcional)
+        - name: dias
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Período en días para productos más movidos
+      responses:
+        '200':
+          description: Reporte completo del sistema en Excel generado exitosamente
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="reporte_completo_sistema_2024-01-15.xlsx"'
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/categories:
+    get:
+      tags: [Reportes]
+      summary: Reporte por categorías
+      description: Retorna estadísticas de inventario agrupadas por categoría
+      responses:
+        '200':
+          description: Reporte por categorías obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        categoria:
+                          type: string
+                          example: "Ropa"
+                        cantidad_productos:
+                          type: integer
+                          example: 8
+                        total_stock:
+                          type: integer
+                          example: 245
+                        promedio_stock:
+                          type: number
+                          format: float
+                          example: 30.6
+                        valor_total:
+                          type: number
+                          format: float
+                          example: 4895.75
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/movements-by-period:
+    get:
+      tags: [Reportes]
+      summary: Reporte de movimientos por período
+      description: Retorna estadísticas de movimientos agrupados por día y tipo
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Fecha de inicio (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Fecha de fin (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Reporte de movimientos obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fecha_dia:
+                          type: string
+                          format: date
+                          example: "2025-09-24"
+                        tipo:
+                          type: string
+                          example: "entrada"
+                        cantidad_movimientos:
+                          type: integer
+                          example: 5
+                        total_unidades:
+                          type: integer
+                          example: 125
+        '400':
+          description: Fechas inválidas
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+  /reportes/top-products:
+    get:
+      tags: [Reportes]
+      summary: Productos más movidos
+      description: Retorna los productos con mayor actividad en movimientos
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+          description: Límite de productos a retornar
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Período en días para el análisis
+      responses:
+        '200':
+          description: Productos más movidos obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        codigo:
+                          type: string
+                          example: "CAM-001"
+                        nombre:
+                          type: string
+                          example: "Camiseta Básica"
+                        categoria:
+                          type: string
+                          example: "Ropa"
+                        total_movimientos:
+                          type: integer
+                          example: 25
+                        total_entradas:
+                          type: integer
+                          example: 150
+                        total_salidas:
+                          type: integer
+                          example: 125
+                        neto:
+                          type: integer
+                          example: 25
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
 components:
   schemas:
     # Schemas de Autenticación
@@ -2298,6 +3043,86 @@ components:
           minimum: 0.01
           example: 279.97
 
+  # Schemas para reportes Excel
+    ExcelReportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Reporte generado exitosamente"
+        filename:
+          type: string
+          example: "reporte_inventario_2024-01-15.xlsx"
+        generatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    # Agregar también estos schemas de ejemplo para los reportes
+    ReporteInventarioEjemplo:
+      type: object
+      properties:
+        hojas:
+          type: array
+          items:
+            type: string
+          example: ["Inventario General", "Stock Bajo", "Métricas"]
+        columnas_principales:
+          type: array
+          items:
+            type: string
+          example: ["Código", "Nombre", "Categoría", "Stock Mínimo", "Stock Actual", "Estado", "Precio", "Valor Total"]
+
+    ReporteMovimientosEjemplo:
+      type: object
+      properties:
+        hojas:
+          type: array
+          items:
+            type: string
+          example: ["Movimientos", "Resumen por Día"]
+        columnas_principales:
+          type: array
+          items:
+            type: string
+          example: ["Fecha", "Tipo", "Producto", "Cantidad", "Referencia", "Responsable", "Proveedor/Cliente"]
+          ExcelReportError:
+      description: Error al generar reporte Excel
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: string
+                example: "Error al generar el archivo Excel"
+              details:
+                type: string
+                example: "No se pudo acceder a los datos de la base de datos"
+
+    InvalidDateRange:
+      description: Rango de fechas inválido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: string
+                example: "Rango de fechas inválido"
+              details:
+                type: string
+                example: "La fecha de inicio debe ser anterior a la fecha de fin"
+
     # Schemas de Preferencias
     PreferenciasUsuario:
       type: object
@@ -2524,6 +3349,240 @@ components:
           type: string
           format: date-time
           example: "2025-09-20T14:30:00Z"
+
+    # Schemas de Inventario
+    ProductoInventario:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: "CAM-001"
+        nombre:
+          type: string
+          example: "Camiseta Básica"
+        descripcion:
+          type: string
+          example: "Camiseta de algodón 100% en varios colores"
+        categoria:
+          type: string
+          example: "Ropa"
+        unidad:
+          type: string
+          example: "unidad"
+        stock_minimo:
+          type: integer
+          example: 10
+        stock_actual:
+          type: integer
+          example: 65
+        estado_stock:
+          type: string
+          enum: [NORMAL, STOCK BAJO, SIN STOCK]
+          example: "NORMAL"
+        precio:
+          type: number
+          format: float
+          example: 19.99
+        activo:
+          type: boolean
+          example: true
+
+    MovimientoInventario:
+      type: object
+      properties:
+        id_movimiento:
+          type: integer
+          example: 1
+        fecha:
+          type: string
+          format: date-time
+          example: "2025-09-24T10:30:00Z"
+        tipo:
+          type: string
+          enum: [entrada, salida]
+          example: "entrada"
+        id_producto:
+          type: integer
+          example: 1
+        producto_nombre:
+          type: string
+          example: "Camiseta Básica"
+        codigo:
+          type: string
+          example: "CAM-001"
+        cantidad:
+          type: integer
+          example: 25
+        referencia:
+          type: string
+          example: "COMP-001"
+        documento:
+          type: string
+          example: "FACT-12345"
+        responsable:
+          type: string
+          example: "Ana Compras"
+        proveedor_nombre:
+          type: string
+          example: "Textiles Modernos SA"
+        usuario_nombre:
+          type: string
+          example: "Juan Pérez"
+        usuario_email:
+          type: string
+          example: "juan@email.com"
+        observaciones:
+          type: string
+          example: "Compra programada de camisetas"
+
+    MovimientoEntradaInput:
+      type: object
+      required:
+        - id_producto
+        - cantidad
+        - referencia
+        - responsable
+        - id_proveedor
+      properties:
+        id_producto:
+          type: integer
+          example: 1
+        cantidad:
+          type: integer
+          minimum: 1
+          example: 25
+        referencia:
+          type: string
+          example: "COMP-001"
+        documento:
+          type: string
+          example: "FACT-12345"
+        responsable:
+          type: string
+          example: "Ana Compras"
+        id_proveedor:
+          type: integer
+          example: 1
+        observaciones:
+          type: string
+          example: "Compra programada de camisetas"
+
+    MovimientoSalidaInput:
+      type: object
+      required:
+        - id_producto
+        - cantidad
+        - referencia
+        - responsable
+        - id_usuario
+      properties:
+        id_producto:
+          type: integer
+          example: 1
+        cantidad:
+          type: integer
+          minimum: 1
+          example: 10
+        referencia:
+          type: string
+          example: "VENT-001"
+        documento:
+          type: string
+          example: "PED-67890"
+        responsable:
+          type: string
+          example: "Carlos Ventas"
+        id_usuario:
+          type: integer
+          example: 2
+        observaciones:
+          type: string
+          example: "Venta a Tienda Fashion Center"
+
+    Proveedor:
+      type: object
+      properties:
+        id_proveedor:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: "Textiles Modernos SA"
+        telefono:
+          type: string
+          example: "+1234567890"
+        contacto:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan@textilesmodernos.com"
+        direccion:
+          type: string
+          example: "Calle Principal 123, Ciudad"
+        activo:
+          type: boolean
+          example: true
+        fecha_creacion:
+          type: string
+          format: date-time
+          example: "2025-09-24T10:30:00Z"
+        fecha_actualizacion:
+          type: string
+          format: date-time
+          example: "2025-09-24T10:35:00Z"
+
+    ProveedorInput:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+          example: "Textiles Modernos SA"
+        telefono:
+          type: string
+          example: "+1234567890"
+        contacto:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan@textilesmodernos.com"
+        direccion:
+          type: string
+          example: "Calle Principal 123, Ciudad"
+
+    ProductoUpdateInput:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: "CAM-001"
+        nombre:
+          type: string
+          example: "Camiseta Básica Actualizada"
+        descripcion:
+          type: string
+          example: "Camiseta de algodón premium"
+        categoria:
+          type: string
+          example: "Ropa"
+        unidad:
+          type: string
+          example: "unidad"
+        stock_minimo:
+          type: integer
+          example: 15
+        precio:
+          type: number
+          format: float
+          example: 24.99
 
     ErrorResponse:
       type: object
