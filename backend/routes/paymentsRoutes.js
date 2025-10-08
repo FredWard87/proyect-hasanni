@@ -14,6 +14,7 @@ router.post('/callback-paypal', paymentsController.handlePayPalCallback);
 router.get('/ordenes', paymentsController.getUserOrders);
 router.get('/ordenes/:orderId', paymentsController.getOrderDetails);
 
+
 // Rutas de administración (requieren ser admin)
 router.get('/admin/ordenes-pendientes', adminMiddleware, paymentsController.getAllPendingOrders);
 router.post('/admin/verificar-orden', adminMiddleware, paymentsController.verifyPayPalOrder);

@@ -1,5 +1,178 @@
 // controllers/inventoryController.js
 const inventoryService = require('../services/inventoryService');
+const { query } = require('../config/database');
+const emailService = require('../services/emailService'); // Agrega esta línea al inicio
+
+
+// Función para redondear a 2 decimales
+const roundToTwoDecimals = (num) => {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+// Función para verificar y enviar alertas de stock bajo
+const checkAndSendLowStockAlerts = async (items) => {
+  try {
+    const lowStockProducts = [];
+    
+    for (const item of items) {
+      // Verificar si después de la venta el stock queda en o por debajo del mínimo
+      const productResult = await query(`
+        SELECT p.id, p.nombre, p.stock, p.stock_minimo, p.codigo
+        FROM productos p 
+        WHERE p.id = $1 AND p.activo = true
+      `, [item.productId]);
+
+      if (productResult.rows.length > 0) {
+        const product = productResult.rows[0];
+        const newStock = product.stock - item.quantity;
+        
+        // Si el stock después de la venta es menor o igual al stock mínimo
+        if (newStock <= product.stock_minimo) {
+          lowStockProducts.push({
+            id: product.id,
+            nombre: product.nombre,
+            codigo: product.codigo,
+            stock_actual: newStock,
+            stock_minimo: product.stock_minimo,
+            cantidad_vendida: item.quantity
+          });
+        }
+      }
+    }
+
+    // Si hay productos con stock bajo, enviar alerta
+    if (lowStockProducts.length > 0) {
+      await sendLowStockAlert(lowStockProducts);
+    }
+    
+    return lowStockProducts;
+  } catch (error) {
+    console.error('Error verificando stock bajo:', error);
+    // No lanzar error para no interrumpir el proceso principal
+    return [];
+  }
+};
+
+// Función para enviar alerta de stock bajo por email
+// En inventoryController.js - modifica la consulta
+const sendLowStockAlert = async (lowStockProducts) => {
+  try {
+    // Obtener email del administrador - CORREGIDO
+    const adminResult = await query(`
+      SELECT email FROM usuarios WHERE rol = 'admin' AND activo = true LIMIT 1
+    `);
+    
+    if (adminResult.rows.length === 0) {
+      console.log('No se encontró administrador para enviar alerta');
+      
+      // Intentar con cualquier usuario activo como fallback
+      const anyAdminResult = await query(`
+        SELECT email FROM usuarios WHERE activo = true LIMIT 1
+      `);
+      
+      if (anyAdminResult.rows.length === 0) {
+        console.log('No hay usuarios activos para enviar alerta');
+        return;
+      }
+      
+      console.log(`Enviando alerta a usuario activo: ${anyAdminResult.rows[0].email}`);
+      await sendEmailToAdmin(anyAdminResult.rows[0].email, lowStockProducts);
+      return;
+    }
+
+    const adminEmail = adminResult.rows[0].email;
+    await sendEmailToAdmin(adminEmail, lowStockProducts);
+
+  } catch (error) {
+    console.error('Error enviando alerta de stock bajo:', error);
+  }
+};
+
+// Función separada para enviar el email
+const sendEmailToAdmin = async (adminEmail, lowStockProducts) => {
+  try {
+    // Crear contenido del email
+    const emailSubject = `🚨 Alerta: Productos con Stock Bajo - ${new Date().toLocaleDateString()}`;
+    
+    let emailContent = `
+      <h2>Alerta de Stock Bajo</h2>
+      <p>Los siguientes productos han alcanzado o están por debajo de su stock mínimo:</p>
+      <table border="1" style="border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background-color: #f2f2f2;">
+            <th style="padding: 8px; text-align: left;">Código</th>
+            <th style="padding: 8px; text-align: left;">Producto</th>
+            <th style="padding: 8px; text-align: left;">Stock Actual</th>
+            <th style="padding: 8px; text-align: left;">Stock Mínimo</th>
+            <th style="padding: 8px; text-align: left;">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    lowStockProducts.forEach(product => {
+      const estado = product.stock_actual < product.stock_minimo ? 'CRÍTICO' : 'ALERTA';
+      const color = product.stock_actual < product.stock_minimo ? '#ffcccc' : '#fff3cd';
+      
+      emailContent += `
+        <tr style="background-color: ${color};">
+          <td style="padding: 8px;">${product.codigo}</td>
+          <td style="padding: 8px;">${product.nombre}</td>
+          <td style="padding: 8px; text-align: center;">${product.stock_actual}</td>
+          <td style="padding: 8px; text-align: center;">${product.stock_minimo}</td>
+          <td style="padding: 8px; text-align: center; font-weight: bold;">${estado}</td>
+        </tr>
+      `;
+    });
+
+    emailContent += `
+        </tbody>
+      </table>
+      <br>
+      <p><strong>Acción requerida:</strong> Por favor, realice un pedido de estos productos para reponer el stock.</p>
+      <p>Fecha de la alerta: ${new Date().toLocaleString()}</p>
+    `;
+
+    // Enviar email
+    const nodemailer = require('nodemailer');
+    
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: adminEmail,
+      subject: emailSubject,
+      html: emailContent
+    });
+
+    console.log(`✅ Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
+    
+    // Registrar la alerta en la base de datos
+    for (const product of lowStockProducts) {
+      await query(`
+        INSERT INTO alertas_stock 
+        (id_producto, codigo_producto, nombre_producto, stock_actual, stock_minimo, tipo_alerta, enviada)
+        VALUES ($1, $2, $3, $4, $5, $6, true)
+      `, [
+        product.id,
+        product.codigo,
+        product.nombre,
+        product.stock_actual,
+        product.stock_minimo,
+        product.stock_actual < product.stock_minimo ? 'critico' : 'alerta'
+      ]);
+    }
+
+  } catch (error) {
+    console.error('❌ Error enviando email de alerta:', error);
+  }
+};
 
 class InventoryController {
     
@@ -147,7 +320,6 @@ class InventoryController {
             }
 
             // Validar que el código sea único
-            const { query } = require('../config/database');
             const codigoCheck = await query('SELECT id FROM productos WHERE codigo = $1', [codigo.trim()]);
             if (codigoCheck.rows.length > 0) {
                 return res.status(409).json({ 
@@ -164,7 +336,7 @@ class InventoryController {
                 categoria: categoria.trim(),
                 unidad: unidad.trim(),
                 stock_minimo: Number(stock_minimo),
-                precio: precio ? Number(precio) : 0
+                precio: precio ? roundToTwoDecimals(Number(precio)) : 0
             });
 
             res.status(201).json({ 
@@ -241,7 +413,6 @@ class InventoryController {
             }
 
             // Validar que el producto existe y está activo
-            const { query } = require('../config/database');
             const productCheck = await query('SELECT id, activo FROM productos WHERE id = $1', [id_producto]);
             if (productCheck.rows.length === 0) {
                 return res.status(404).json({ 
@@ -288,7 +459,7 @@ class InventoryController {
         }
     }
 
-    // Registrar salida
+    // Registrar salida - CON SISTEMA DE ALERTAS DE STOCK BAJO
     async registerExit(req, res) {
         try {
             const { id_producto, cantidad, referencia, documento, responsable, id_usuario, observaciones } = req.body;
@@ -358,8 +529,7 @@ class InventoryController {
             }
 
             // Validar que el producto existe y está activo
-            const { query } = require('../config/database');
-            const productCheck = await query('SELECT id, activo, stock FROM productos WHERE id = $1', [id_producto]);
+            const productCheck = await query('SELECT id, activo, stock, stock_minimo, nombre FROM productos WHERE id = $1', [id_producto]);
             if (productCheck.rows.length === 0) {
                 return res.status(404).json({ 
                     success: false, 
@@ -402,11 +572,26 @@ class InventoryController {
                 id_usuario: finalUserId,
                 observaciones: observaciones ? observaciones.trim() : null
             });
+
+            // VERIFICAR Y ENVIAR ALERTAS DE STOCK BAJO DESPUÉS DE LA SALIDA
+            const lowStockProducts = await checkAndSendLowStockAlerts([{
+                productId: id_producto,
+                quantity: Number(cantidad)
+            }]);
+
+            let message = 'Salida registrada exitosamente';
+            if (lowStockProducts.length > 0) {
+                const product = productCheck.rows[0];
+                const newStock = product.stock - Number(cantidad);
+                const estado = newStock < product.stock_minimo ? 'CRÍTICO' : 'ALERTA';
+                
+                message += `. Se generó alerta de stock ${estado.toLowerCase()} para "${product.nombre}" (Stock actual: ${newStock}, Mínimo: ${product.stock_minimo})`;
+            }
             
             res.json({ 
                 success: true, 
                 data: movement, 
-                message: 'Salida registrada exitosamente' 
+                message: message 
             });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
@@ -433,7 +618,7 @@ class InventoryController {
         }
     }
 
-    // Actualizar producto - CON VALIDACIONES
+    // Actualizar producto - CON VALIDACIONES Y REDONDEO DE PRECIO
     async updateProduct(req, res) {
         try {
             const { id } = req.params;
@@ -537,7 +722,6 @@ class InventoryController {
             }
 
             // Validar que el producto existe
-            const { query } = require('../config/database');
             const productCheck = await query('SELECT id FROM productos WHERE id = $1', [id]);
             if (productCheck.rows.length === 0) {
                 return res.status(404).json({ 
@@ -557,15 +741,18 @@ class InventoryController {
                 }
             }
 
-            const product = await inventoryService.updateProduct(id, {
+            // Preparar datos para actualización con redondeo de precio
+            const updateData = {
                 codigo: codigo ? codigo.trim() : undefined,
                 nombre: nombre ? nombre.trim() : undefined,
                 descripcion: descripcion ? descripcion.trim() : undefined,
                 categoria: categoria ? categoria.trim() : undefined,
                 unidad: unidad ? unidad.trim() : undefined,
                 stock_minimo: stock_minimo !== undefined ? Number(stock_minimo) : undefined,
-                precio: precio !== undefined ? Number(precio) : undefined
-            });
+                precio: precio !== undefined ? roundToTwoDecimals(Number(precio)) : undefined
+            };
+
+            const product = await inventoryService.updateProduct(id, updateData);
 
             res.json({ 
                 success: true, 
@@ -591,7 +778,6 @@ class InventoryController {
             }
 
             // Verificar que el producto existe
-            const { query } = require('../config/database');
             const productCheck = await query('SELECT id, activo, nombre FROM productos WHERE id = $1', [id]);
             
             if (productCheck.rows.length === 0) {
@@ -718,7 +904,6 @@ class InventoryController {
             }
 
             // Validar que el nombre sea único
-            const { query } = require('../config/database');
             const nombreCheck = await query('SELECT id_proveedor FROM proveedores WHERE nombre = $1', [nombre.trim()]);
             if (nombreCheck.rows.length > 0) {
                 return res.status(409).json({ 
@@ -823,7 +1008,6 @@ class InventoryController {
             }
 
             // Validar que el proveedor existe
-            const { query } = require('../config/database');
             const proveedorCheck = await query('SELECT id_proveedor FROM proveedores WHERE id_proveedor = $1', [id]);
             if (proveedorCheck.rows.length === 0) {
                 return res.status(404).json({ 
@@ -858,6 +1042,57 @@ class InventoryController {
             });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
+        }
+    }
+
+    // Endpoint para obtener alertas de stock (para admin)
+    async getStockAlerts(req, res) {
+        try {
+            const { page = 1, limit = 20, tipo } = req.query;
+            
+            let whereClause = 'WHERE 1=1';
+            const queryParams = [];
+            
+            if (tipo) {
+                queryParams.push(tipo);
+                whereClause += ` AND tipo_alerta = $${queryParams.length}`;
+            }
+
+            const pageNum = parseInt(page);
+            const limitNum = parseInt(limit);
+            const offset = (pageNum - 1) * limitNum;
+
+            queryParams.push(limitNum, offset);
+
+            const result = await query(`
+                SELECT * FROM alertas_stock 
+                ${whereClause}
+                ORDER BY fecha_alerta DESC
+                LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
+            `, queryParams);
+
+            const countResult = await query(`
+                SELECT COUNT(*) FROM alertas_stock 
+                ${whereClause}
+            `, tipo ? [tipo] : []);
+
+            res.json({
+                success: true,
+                data: result.rows,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total: parseInt(countResult.rows[0].count),
+                    pages: Math.ceil(parseInt(countResult.rows[0].count) / limitNum)
+                }
+            });
+
+        } catch (error) {
+            console.error('Error obteniendo alertas de stock:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
         }
     }
 }

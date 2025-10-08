@@ -1,5 +1,9 @@
+// controllers/paymentController.js
+// controllers/paymentController.js
 const { query } = require('../config/database');
 const fetch = require('node-fetch');
+const nodemailer = require('nodemailer');
+
 
 // Configuración de PayPal
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
@@ -30,6 +34,153 @@ const getPayPalAccessToken = async () => {
   }
 };
 
+// Función para redondear a 2 decimales
+const roundToTwoDecimals = (num) => {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+// Función para verificar y enviar alertas de stock bajo
+const checkAndSendLowStockAlerts = async (items) => {
+  try {
+    const lowStockProducts = [];
+    
+    for (const item of items) {
+      // Verificar si después de la venta el stock queda en o por debajo del mínimo
+      const productResult = await query(`
+        SELECT p.id, p.nombre, p.stock, p.stock_minimo, p.codigo
+        FROM productos p 
+        WHERE p.id = $1 AND p.activo = true
+      `, [item.productId]);
+
+      if (productResult.rows.length > 0) {
+        const product = productResult.rows[0];
+        const newStock = product.stock - item.quantity;
+        
+        // Si el stock después de la venta es menor o igual al stock mínimo
+        if (newStock <= product.stock_minimo) {
+          lowStockProducts.push({
+            id: product.id,
+            nombre: product.nombre,
+            codigo: product.codigo,
+            stock_actual: newStock,
+            stock_minimo: product.stock_minimo,
+            cantidad_vendida: item.quantity
+          });
+        }
+      }
+    }
+
+    // Si hay productos con stock bajo, enviar alerta
+    if (lowStockProducts.length > 0) {
+      await sendLowStockAlert(lowStockProducts);
+    }
+    
+    return lowStockProducts;
+  } catch (error) {
+    console.error('Error verificando stock bajo:', error);
+    // No lanzar error para no interrumpir el proceso de pago
+  }
+};
+
+// Función para enviar alerta de stock bajo por email
+const sendLowStockAlert = async (lowStockProducts) => {
+  try {
+    // Obtener email del administrador
+    const adminResult = await query(`
+      SELECT email FROM usuarios WHERE rol = 'admin' AND activo = true LIMIT 1
+    `);
+    
+    if (adminResult.rows.length === 0) {
+      console.log('No se encontró administrador para enviar alerta');
+      return;
+    }
+
+    const adminEmail = adminResult.rows[0].email;
+    
+    // Crear contenido del email
+    const emailSubject = `🚨 Alerta: Productos con Stock Bajo - ${new Date().toLocaleDateString()}`;
+    
+    let emailContent = `
+      <h2>Alerta de Stock Bajo</h2>
+      <p>Los siguientes productos han alcanzado o están por debajo de su stock mínimo después de una venta:</p>
+      <table border="1" style="border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background-color: #f2f2f2;">
+            <th style="padding: 8px; text-align: left;">Código</th>
+            <th style="padding: 8px; text-align: left;">Producto</th>
+            <th style="padding: 8px; text-align: left;">Stock Actual</th>
+            <th style="padding: 8px; text-align: left;">Stock Mínimo</th>
+            <th style="padding: 8px; text-align: left;">Cantidad Vendida</th>
+            <th style="padding: 8px; text-align: left;">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    lowStockProducts.forEach(product => {
+      const estado = product.stock_actual < product.stock_minimo ? 'CRÍTICO' : 'ALERTA';
+      const color = product.stock_actual < product.stock_minimo ? '#ffcccc' : '#fff3cd';
+      
+      emailContent += `
+        <tr style="background-color: ${color};">
+          <td style="padding: 8px;">${product.codigo}</td>
+          <td style="padding: 8px;">${product.nombre}</td>
+          <td style="padding: 8px; text-align: center;">${product.stock_actual}</td>
+          <td style="padding: 8px; text-align: center;">${product.stock_minimo}</td>
+          <td style="padding: 8px; text-align: center;">${product.cantidad_vendida}</td>
+          <td style="padding: 8px; text-align: center; font-weight: bold;">${estado}</td>
+        </tr>
+      `;
+    });
+
+    emailContent += `
+        </tbody>
+      </table>
+      <br>
+      <p><strong>Acción requerida:</strong> Por favor, realice un pedido de estos productos para reponer el stock.</p>
+      <p>Fecha de la alerta: ${new Date().toLocaleString()}</p>
+    `;
+
+    // Enviar email (usando el mismo sistema de email que tienes configurado)
+    
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: adminEmail,
+      subject: emailSubject,
+      html: emailContent
+    });
+
+    console.log(`Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
+    
+    // También registrar la alerta en la base de datos
+    for (const product of lowStockProducts) {
+      await query(`
+        INSERT INTO alertas_stock 
+        (id_producto, codigo_producto, nombre_producto, stock_actual, stock_minimo, tipo_alerta, enviada)
+        VALUES ($1, $2, $3, $4, $5, $6, true)
+      `, [
+        product.id,
+        product.codigo,
+        product.nombre,
+        product.stock_actual,
+        product.stock_minimo,
+        product.stock_actual < product.stock_minimo ? 'critico' : 'alerta'
+      ]);
+    }
+
+  } catch (error) {
+    console.error('Error enviando alerta de stock bajo:', error);
+  }
+};
+
 // Obtener productos disponibles
 exports.getProducts = async (req, res) => {
   try {
@@ -52,7 +203,7 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-// Crear orden de PayPal - MEJORADO
+// Crear orden de PayPal - MEJORADO CON REDONDEO
 exports.createPayPalOrder = async (req, res) => {
   try {
     const { items } = req.body;
@@ -93,7 +244,7 @@ exports.createPayPalOrder = async (req, res) => {
       });
     }
 
-    // Validar productos y calcular total automáticamente
+    // Validar productos y calcular total automáticamente CON REDONDEO
     let calculatedTotal = 0;
     const validatedItems = [];
     const productsForInventory = [];
@@ -129,7 +280,7 @@ exports.createPayPalOrder = async (req, res) => {
         name: product.nombre,
         unit_amount: {
           currency_code: 'USD',
-          value: parseFloat(product.precio).toFixed(2)
+          value: roundToTwoDecimals(parseFloat(product.precio)).toFixed(2)
         },
         quantity: quantity.toString()
       });
@@ -140,8 +291,8 @@ exports.createPayPalOrder = async (req, res) => {
       });
     }
 
-    // Redondear el total a 2 decimales
-    calculatedTotal = Math.round(calculatedTotal * 100) / 100;
+    // REDONDEO CORREGIDO: Redondear el total a 2 decimales
+    calculatedTotal = roundToTwoDecimals(calculatedTotal);
 
     if (calculatedTotal <= 0) {
       return res.status(400).json({
@@ -169,7 +320,7 @@ exports.createPayPalOrder = async (req, res) => {
         reference_id: order.id.toString(),
         amount: {
           currency_code: 'USD',
-          value: calculatedTotal.toFixed(2),
+          value: calculatedTotal.toFixed(2), // Ya está redondeado
           breakdown: {
             item_total: {
               currency_code: 'USD',
@@ -234,7 +385,7 @@ exports.createPayPalOrder = async (req, res) => {
   }
 };
 
-// Función auxiliar para restar stock
+// Función auxiliar para restar stock CON VERIFICACIÓN DE ALERTAS
 const decreaseInventoryStock = async (items) => {
   try {
     for (const item of items) {
@@ -251,6 +402,9 @@ const decreaseInventoryStock = async (items) => {
         VALUES ('salida', $1, $2, $3, $4, 'Sistema', 'Venta por PayPal')
       `, [item.productId, item.quantity, `PAY-${Date.now()}`, `PAGO-${Date.now()}`]);
     }
+
+    // VERIFICAR Y ENVIAR ALERTAS DE STOCK BAJO
+    await checkAndSendLowStockAlerts(items);
   } catch (error) {
     console.error('Error actualizando stock:', error);
     throw error;
@@ -321,7 +475,7 @@ exports.verifyPayPalOrder = async (req, res) => {
   }
 };
 
-// Capturar pago manualmente (para admin) - CON DESCUENTO DE STOCK
+// Capturar pago manualmente (para admin) - CON DESCUENTO DE STOCK Y ALERTAS
 exports.capturePayPalOrderManual = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -403,7 +557,7 @@ exports.capturePayPalOrderManual = async (req, res) => {
         console.error('Error parseando items:', e);
       }
 
-      // Restar stock del inventario
+      // Restar stock del inventario Y VERIFICAR ALERTAS
       await decreaseInventoryStock(items);
 
       // Actualizar orden como completada
@@ -523,7 +677,7 @@ exports.getAllPendingOrders = async (req, res) => {
   }
 };
 
-// Aprobar orden manualmente (sin PayPal) - CON DESCUENTO DE STOCK
+// Aprobar orden manualmente (sin PayPal) - CON DESCUENTO DE STOCK Y ALERTAS
 exports.approveOrderManual = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -580,7 +734,7 @@ exports.approveOrderManual = async (req, res) => {
       console.error('Error parseando items:', e);
     }
 
-    // Restar stock del inventario
+    // Restar stock del inventario Y VERIFICAR ALERTAS
     await decreaseInventoryStock(items);
 
     // Actualizar orden como completada manualmente
@@ -782,6 +936,57 @@ exports.getOrderDetails = async (req, res) => {
 
   } catch (error) {
     console.error('Error obteniendo detalles de orden:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
+// Endpoint para obtener alertas de stock (para admin)
+exports.getStockAlerts = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, tipo } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    const queryParams = [];
+    
+    if (tipo) {
+      queryParams.push(tipo);
+      whereClause += ` AND tipo_alerta = $${queryParams.length}`;
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    queryParams.push(limitNum, offset);
+
+    const result = await query(`
+      SELECT * FROM alertas_stock 
+      ${whereClause}
+      ORDER BY fecha_alerta DESC
+      LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
+    `, queryParams);
+
+    const countResult = await query(`
+      SELECT COUNT(*) FROM alertas_stock 
+      ${whereClause}
+    `, tipo ? [tipo] : []);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: parseInt(countResult.rows[0].count),
+        pages: Math.ceil(parseInt(countResult.rows[0].count) / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo alertas de stock:', error);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
