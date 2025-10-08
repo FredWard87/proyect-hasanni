@@ -942,7 +942,7 @@ paths:
     post:
       tags: [Pagos]
       summary: Crear nueva orden de PayPal
-      description: Crea una nueva orden de compra y genera un enlace de pago de PayPal
+      description: Crea una nueva orden de compra y genera un enlace de pago de PayPal. El total se calcula automáticamente basado en los precios de los productos.
       requestBody:
         required: true
         content:
@@ -981,6 +981,12 @@ paths:
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
                   success:
@@ -988,7 +994,7 @@ paths:
                     example: false
                   message:
                     type: string
-                    example: Items son requeridos
+                    example: "Producto con ID 5 no encontrado o no está disponible"
         '500':
           description: Error interno del servidor
 
@@ -1028,6 +1034,10 @@ paths:
                     example: 1
         '400':
           description: PayPal Order ID faltante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
         '404':
           description: Orden no encontrada
         '500':
@@ -1233,6 +1243,10 @@ paths:
                         example: "2025-09-22T10:35:00Z"
         '400':
           description: Error al verificar la orden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
         '401':
           description: No autorizado
         '403':
@@ -1244,7 +1258,7 @@ paths:
     post:
       tags: [Administración, Pagos]
       summary: Capturar pago de PayPal (Admin)
-      description: Captura manualmente un pago de PayPal para una orden pendiente (solo administradores)
+      description: Captura manualmente un pago de PayPal para una orden pendiente y actualiza el stock automáticamente (solo administradores)
       parameters:
         - name: orderId
           in: path
@@ -1254,7 +1268,7 @@ paths:
             minimum: 1
       responses:
         '200':
-          description: Pago capturado exitosamente
+          description: Pago capturado exitosamente y stock actualizado
           content:
             application/json:
               schema:
@@ -1265,7 +1279,7 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: Pago procesado correctamente
+                    example: Pago procesado correctamente y stock actualizado
                   data:
                     type: object
                     properties:
@@ -1283,7 +1297,18 @@ paths:
                         format: float
                         example: 279.97
         '400':
-          description: Error al capturar el pago
+          description: Error al capturar el pago o orden ya completada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Esta orden ya ha sido completada previamente
         '404':
           description: Orden no encontrada
         '401':
@@ -1297,7 +1322,7 @@ paths:
     post:
       tags: [Administración, Pagos]
       summary: Aprobar orden manualmente (Admin)
-      description: Aprueba manualmente una orden sin usar PayPal (solo administradores)
+      description: Aprueba manualmente una orden sin usar PayPal y actualiza el stock automáticamente (solo administradores)
       parameters:
         - name: orderId
           in: path
@@ -1317,7 +1342,7 @@ paths:
                   example: "Pago recibido en efectivo"
       responses:
         '200':
-          description: Orden aprobada manualmente exitosamente
+          description: Orden aprobada manualmente exitosamente y stock actualizado
           content:
             application/json:
               schema:
@@ -1328,7 +1353,7 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: Orden aprobada manualmente
+                    example: Orden aprobada manualmente y stock actualizado
                   data:
                     type: object
                     properties:
@@ -1344,6 +1369,10 @@ paths:
                         example: 279.97
         '400':
           description: Error al aprobar la orden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
         '404':
           description: Orden no encontrada
         '401':
@@ -3064,6 +3093,13 @@ components:
               quantity:
                 type: integer
                 example: 2
+              productName:
+                type: string
+                example: "Laptop Gaming"
+              unitPrice:
+                type: number
+                format: float
+                example: 139.99
         paypal_order_id:
           type: string
           example: "5O190127TN364715T"
@@ -3078,6 +3114,9 @@ components:
           type: string
           format: date-time
           example: "2025-09-22T10:35:00Z"
+        admin_notes:
+          type: string
+          example: "Aprobado manualmente por administrador"
 
     OrdenCompleta:
       allOf:
@@ -3099,7 +3138,6 @@ components:
       type: object
       required:
         - items
-        - total
       properties:
         items:
           type: array
@@ -3115,12 +3153,8 @@ components:
               quantity:
                 type: integer
                 minimum: 1
+                maximum: 999999
                 example: 2
-        total:
-          type: number
-          format: float
-          minimum: 0.01
-          example: 279.97
 
     ProductoCreateInput:
       type: object
@@ -3671,6 +3705,25 @@ components:
           format: float
           example: 24.99
 
+    # Nuevos schemas para validaciones
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Error de validación
+        errors:
+          type: array
+          items:
+            type: string
+          example:
+            - "El ID del producto es requerido para cada item"
+            - "La cantidad debe ser un número válido"
+            - "La cantidad debe ser mayor a 0"
+
     ErrorResponse:
       type: object
       properties:
@@ -3707,17 +3760,17 @@ components:
       content:
         application/json:
           schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  message:
-                    type: string
-                    example: Acceso denegado
-                  error:
-                    type: string
-                    example: Se requieren permisos de administrador
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Acceso denegado
+              error:
+                type: string
+                example: Se requieren permisos de administrador
 
     NotFound:
       description: Recurso no encontrado
