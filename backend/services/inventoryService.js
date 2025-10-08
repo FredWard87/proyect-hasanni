@@ -1,4 +1,3 @@
-// services/inventoryService.js
 const { query } = require('../config/database');
 
 class InventoryService {
@@ -14,6 +13,17 @@ class InventoryService {
         return result.rows[0];
     }
 
+    async createProduct(productData) {
+        const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = productData;
+        const result = await query(
+            `INSERT INTO productos 
+             (codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock, activo) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio || 0, 0, true]
+        );
+        return result.rows[0];
+    }
+
     async updateProduct(id, productData) {
         const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = productData;
         const result = await query(
@@ -26,9 +36,37 @@ class InventoryService {
         return result.rows[0];
     }
 
-    // Inventario
-    async getInventory() {
-        const result = await query('SELECT * FROM vista_inventario ORDER BY estado_stock, nombre');
+    async deleteProduct(id) {
+        const result = await query(
+            'UPDATE productos SET activo = false, fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+            [id]
+        );
+        return result.rows[0];
+    }
+
+    // Inventario - CON FILTRO DE ACTIVO/INACTIVO
+    async getInventory(filters = {}) {
+        let queryStr = 'SELECT * FROM vista_inventario WHERE 1=1';
+        const params = [];
+        let paramCount = 0;
+
+        // Filtro por estado activo/inactivo
+        if (filters.activo !== undefined && filters.activo !== null) {
+            paramCount++;
+            queryStr += ` AND activo = $${paramCount}`;
+            // Convertir string "true"/"false" a booleano si es necesario
+            const activoValue = typeof filters.activo === 'string' 
+                ? filters.activo.toLowerCase() === 'true' 
+                : filters.activo;
+            params.push(activoValue);
+        } else {
+            // Por defecto, mostrar solo activos
+            queryStr += ' AND activo = true';
+        }
+
+        queryStr += ' ORDER BY estado_stock, nombre';
+        
+        const result = await query(queryStr, params);
         return result.rows;
     }
 

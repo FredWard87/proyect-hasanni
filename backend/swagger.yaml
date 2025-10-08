@@ -2038,7 +2038,15 @@ paths:
     get:
       tags: [Inventario]
       summary: Obtener inventario completo
-      description: Retorna la lista completa de productos con información de stock
+      description: Retorna la lista completa de productos con información de stock. Por defecto muestra solo productos activos.
+      parameters:
+        - name: activo
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+          description: Filtrar por estado activo/inactivo. Si no se proporciona, muestra solo activos (default true)
+          example: 'true'
       responses:
         '200':
           description: Inventario obtenido exitosamente
@@ -2258,6 +2266,39 @@ paths:
         '500':
           description: Error interno del servidor
 
+    post:
+      tags: [Inventario]
+      summary: Crear nuevo proveedor
+      description: Crea un nuevo proveedor en el sistema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveedorInput'
+      responses:
+        '201':
+          description: Proveedor creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Proveedor'
+                  message:
+                    type: string
+                    example: Proveedor creado exitosamente
+        '400':
+          description: Error de validación
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
   /inventario/entries:
     post:
       tags: [Inventario]
@@ -2326,20 +2367,20 @@ paths:
         '500':
           description: Error interno del servidor
 
-  /inventario/proveedores:
+  /inventario/products:
     post:
       tags: [Inventario]
-      summary: Crear nuevo proveedor
-      description: Crea un nuevo proveedor en el sistema
+      summary: Crear nuevo producto
+      description: Crea un nuevo producto en el sistema de inventario
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProveedorInput'
+              $ref: '#/components/schemas/ProductoCreateInput'
       responses:
         '201':
-          description: Proveedor creado exitosamente
+          description: Producto creado exitosamente
           content:
             application/json:
               schema:
@@ -2349,12 +2390,16 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/Proveedor'
+                    $ref: '#/components/schemas/ProductoInventario'
                   message:
                     type: string
-                    example: Proveedor creado exitosamente
+                    example: Producto creado exitosamente
         '400':
           description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/ValidationError'
         '401':
           description: No autorizado
         '500':
@@ -2397,6 +2442,41 @@ paths:
           description: Error de validación
         '404':
           description: Producto no encontrado
+        '401':
+          description: No autorizado
+        '500':
+          description: Error interno del servidor
+
+    delete:
+      tags: [Inventario]
+      summary: Eliminar producto
+      description: Elimina un producto del sistema (eliminación lógica)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Producto eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Producto eliminado exitosamente
+        '404':
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/NotFound'
         '401':
           description: No autorizado
         '500':
@@ -2447,7 +2527,6 @@ paths:
   # =============================================
   # ENDPOINTS DE REPORTES
   # =============================================
-  # Agregar estos endpoints en la sección de paths, después de los endpoints existentes de reportes
 
   /reportes/excel/inventario:
     get:
@@ -3043,7 +3122,48 @@ components:
           minimum: 0.01
           example: 279.97
 
-  # Schemas para reportes Excel
+    ProductoCreateInput:
+      type: object
+      required:
+        - codigo
+        - nombre
+        - categoria
+        - unidad
+        - stock_minimo
+      properties:
+        codigo:
+          type: string
+          example: "CAM-001"
+          description: Código único del producto
+        nombre:
+          type: string
+          example: "Camiseta Básica"
+          description: Nombre del producto
+        descripcion:
+          type: string
+          example: "Camiseta de algodón 100% en varios colores"
+          description: Descripción detallada del producto
+        categoria:
+          type: string
+          example: "Ropa"
+          description: Categoría del producto
+        unidad:
+          type: string
+          example: "unidad"
+          description: Unidad de medida (unidad, kg, litro, etc.)
+        stock_minimo:
+          type: integer
+          minimum: 0
+          example: 10
+          description: Stock mínimo requerido
+        precio:
+          type: number
+          format: float
+          minimum: 0
+          example: 19.99
+          description: Precio unitario del producto
+
+    # Schemas para reportes Excel
     ExcelReportResponse:
       type: object
       properties:
@@ -3089,39 +3209,6 @@ components:
           items:
             type: string
           example: ["Fecha", "Tipo", "Producto", "Cantidad", "Referencia", "Responsable", "Proveedor/Cliente"]
-          ExcelReportError:
-      description: Error al generar reporte Excel
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: false
-              error:
-                type: string
-                example: "Error al generar el archivo Excel"
-              details:
-                type: string
-                example: "No se pudo acceder a los datos de la base de datos"
-
-    InvalidDateRange:
-      description: Rango de fechas inválido
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: false
-              error:
-                type: string
-                example: "Rango de fechas inválido"
-              details:
-                type: string
-                example: "La fecha de inicio debe ser anterior a la fecha de fin"
 
     # Schemas de Preferencias
     PreferenciasUsuario:
@@ -3620,17 +3707,17 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: false
-              message:
-                type: string
-                example: Acceso denegado
-              error:
-                type: string
-                example: Se requieren permisos de administrador
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Acceso denegado
+                  error:
+                    type: string
+                    example: Se requieren permisos de administrador
 
     NotFound:
       description: Recurso no encontrado
@@ -3686,6 +3773,40 @@ components:
               error:
                 type: string
                 example: Error de conexión con la base de datos
+
+    ExcelReportError:
+      description: Error al generar reporte Excel
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: string
+                example: "Error al generar el archivo Excel"
+              details:
+                type: string
+                example: "No se pudo acceder a los datos de la base de datos"
+
+    InvalidDateRange:
+      description: Rango de fechas inválido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: string
+                example: "Rango de fechas inválido"
+              details:
+                type: string
+                example: "La fecha de inicio debe ser anterior a la fecha de fin"
 
   securitySchemes:
     BearerAuth:
