@@ -97,7 +97,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '400':
+        '200':
           description: Error de validación o credenciales inválidas
           content:
             application/json:
@@ -160,7 +160,7 @@ paths:
                   message:
                     type: string
                     example: Código OTP enviado a tu email
-        '400':
+        '200':
           description: Credenciales inválidas
           content:
             application/json:
@@ -377,7 +377,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '400':
+        '200':
           description: Código OTP inválido
           content:
             application/json:
@@ -532,7 +532,7 @@ paths:
                   message:
                     type: string
                     example: Contraseña restablecida exitosamente
-        '400':
+        '200':
           description: Token inválido
           content:
             application/json:
@@ -590,7 +590,7 @@ paths:
                   message:
                     type: string
                     example: Token válido
-        '400':
+        '200':
           description: Token malformado
           content:
             application/json:
@@ -1032,7 +1032,7 @@ paths:
                   orderId:
                     type: integer
                     example: 1
-        '400':
+        '200':
           description: PayPal Order ID faltante
           content:
             application/json:
@@ -1296,7 +1296,7 @@ paths:
                         type: number
                         format: float
                         example: 279.97
-        '400':
+        '200':
           description: Error al capturar el pago o orden ya completada
           content:
             application/json:
@@ -1735,7 +1735,7 @@ paths:
                   message:
                     type: string
                     example: PIN verificado exitosamente
-        '400':
+        '200':
           description: PIN incorrecto
           content:
             application/json:
@@ -1824,7 +1824,7 @@ paths:
                   message:
                     type: string
                     example: Autenticación biométrica desactivada exitosamente
-        '400':
+        '200':
           description: PIN incorrecto
           content:
             application/json:
@@ -1865,7 +1865,7 @@ paths:
                   message:
                     type: string
                     example: PIN cambiado exitosamente
-        '400':
+        '200':
           description: PIN actual incorrecto
           content:
             application/json:
@@ -2005,7 +2005,7 @@ paths:
                   message:
                     type: string
                     example: Código verificado exitosamente
-        '400':
+        '200':
           description: Código incorrecto
           content:
             application/json:
@@ -2389,7 +2389,7 @@ paths:
                   message:
                     type: string
                     example: Salida registrada exitosamente
-        '400':
+        '200':
           description: Error en los datos de salida o stock insuficiente
         '401':
           description: No autorizado
@@ -2626,7 +2626,7 @@ paths:
               schema:
                 type: string
               example: 'attachment; filename="reporte_movimientos_2024-01-01_a_2024-01-15.xlsx"'
-        '400':
+        '200':
           description: Fechas inválidas o faltantes
         '401':
           description: No autorizado
@@ -2807,7 +2807,7 @@ paths:
                         total_unidades:
                           type: integer
                           example: 125
-        '400':
+        '200':
           description: Fechas inválidas
         '401':
           description: No autorizado
