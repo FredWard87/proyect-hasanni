@@ -9,7 +9,7 @@ class LocationController {
       const { latitude, longitude, accuracy, timestamp } = req.body;
       
       if (latitude === undefined || longitude === undefined) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: 'Latitude y longitude son requeridos'
         });
@@ -17,14 +17,14 @@ class LocationController {
 
       if (typeof latitude !== 'number' || isNaN(latitude) || 
           typeof longitude !== 'number' || isNaN(longitude)) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: 'Latitude y longitude deben ser números válidos'
         });
       }
 
       if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: 'Coordenadas fuera de rango válido'
         });
@@ -176,7 +176,7 @@ class LocationController {
       const radiusNum = parseFloat(radius);
       
       if (isNaN(radiusNum) || radiusNum <= 0) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: 'El parámetro radius debe ser un número mayor que 0'
         });

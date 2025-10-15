@@ -660,7 +660,7 @@ exports.adminResetPassword = async (req, res) => {
 
     // Verificar que se proporcione al menos uno de los dos
     if (!userId && !email) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Se requiere userId o email del usuario'
       });
@@ -792,7 +792,7 @@ exports.forgotPassword = async (req, res) => {
 
     const validation = validateRequestBody(req.body, requestValidations);
     if (!validation.isValid) {
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Datos de entrada inválidos',
         errors: validation.errors
@@ -806,7 +806,7 @@ exports.forgotPassword = async (req, res) => {
     const emailDomain = email.split('@')[1];
     
     if (!allowedDomains.includes(emailDomain)) {
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Dominio de email no permitido. Use @gmail.com, @hotmail.com, etc.'
       });
@@ -955,7 +955,7 @@ exports.resetPassword = async (req, res) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (error) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Token inválido o expirado'
       });
@@ -963,7 +963,7 @@ exports.resetPassword = async (req, res) => {
 
     // Verificar que es un token de restablecimiento
     if (decoded.type !== 'password_reset') {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Token no válido para restablecimiento'
       });
@@ -985,7 +985,7 @@ exports.resetPassword = async (req, res) => {
     });
 
     if (!passwordValidation.isValid) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La nueva contraseña no cumple los requisitos de seguridad',
         data: {
@@ -1001,7 +1001,7 @@ exports.resetPassword = async (req, res) => {
     // Verificar que no sea la misma contraseña actual
     const isSamePassword = await usuario.verificarPassword(password);
     if (isSamePassword) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La nueva contraseña debe ser diferente a la actual',
         data: {
@@ -1106,7 +1106,7 @@ exports.changePassword = async (req, res) => {
         motivo: 'contraseña_actual_incorrecta'
       });
 
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La contraseña actual es incorrecta'
       });
@@ -1114,7 +1114,7 @@ exports.changePassword = async (req, res) => {
 
     // Verificar que no sea la misma contraseña
     if (currentPassword === newPassword) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La nueva contraseña debe ser diferente a la actual'
       });
@@ -1127,7 +1127,7 @@ exports.changePassword = async (req, res) => {
     });
 
     if (!passwordValidation.isValid) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La nueva contraseña no cumple los requisitos de seguridad',
         data: {
@@ -1267,7 +1267,7 @@ exports.register = async (req, res) => {
     const emailDomain = email.split('@')[1];
     
     if (!allowedDomains.includes(emailDomain)) {
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Dominio de email no permitido. Use @gmail.com, @hotmail.com, etc.' 
       });
@@ -1280,7 +1280,7 @@ exports.register = async (req, res) => {
     });
 
     if (!passwordValidation.isValid) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'La contraseña no cumple los requisitos de seguridad',
         data: {
@@ -1310,7 +1310,7 @@ exports.register = async (req, res) => {
     // Validar consistencia de coordenadas
     if ((latitude !== undefined || longitude !== undefined)) {
       if (latitude === undefined || longitude === undefined) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: 'Si proporcionas ubicación, tanto latitude como longitude son requeridos'
         });
@@ -1423,7 +1423,7 @@ exports.login = async (req, res) => {
 
     const usuario = await Usuario.obtenerPorEmail(email);
     if (!usuario) {
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Credenciales inválidas.' 
       });
@@ -1438,7 +1438,7 @@ exports.login = async (req, res) => {
         timestamp: new Date().toISOString()
       });
       
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Credenciales inválidas.' 
       });
@@ -1598,7 +1598,7 @@ exports.verifyOtp = async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Usuario no encontrado.' 
       });
@@ -1628,7 +1628,7 @@ exports.verifyOtp = async (req, res) => {
         modo: mode
       });
       
-      return res.status(400).json({ 
+      return res.status(200).json({ 
         success: false,
         message: 'Código incorrecto o expirado.' 
       });
@@ -2332,7 +2332,7 @@ exports.passwordValidationMiddleware = (req, res, next) => {
   });
   
   if (!validation.isValid) {
-    return res.status(400).json({
+    return res.status(200).json({
       success: false,
       message: 'La contraseña no cumple los requisitos de seguridad',
       data: {

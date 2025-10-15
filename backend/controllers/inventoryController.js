@@ -422,7 +422,7 @@ class InventoryController {
             }
 
             if (!productCheck.rows[0].activo) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: 'No se puede registrar entrada para un producto inactivo' 
                 });
@@ -522,7 +522,7 @@ class InventoryController {
             const finalUserId = id_usuario || req.user?.userId;
             
             if (!finalUserId) {
-                return res.status(400).json({
+                return res.status(200).json({
                     success: false,
                     message: 'Se requiere identificar al usuario'
                 });
@@ -538,7 +538,7 @@ class InventoryController {
             }
 
             if (!productCheck.rows[0].activo) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: 'No se puede registrar salida para un producto inactivo' 
                 });
@@ -546,7 +546,7 @@ class InventoryController {
 
             // Validar stock disponible
             if (productCheck.rows[0].stock < Number(cantidad)) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: `Stock insuficiente. Stock disponible: ${productCheck.rows[0].stock}, cantidad solicitada: ${cantidad}` 
                 });
@@ -555,7 +555,7 @@ class InventoryController {
             // Validar que el usuario existe y está activo
             const userCheck = await query('SELECT id FROM usuarios WHERE id = $1 AND activo = true', [finalUserId]);
             if (userCheck.rows.length === 0) {
-                return res.status(400).json({
+                return res.status(200).json({
                     success: false,
                     message: 'Usuario no válido o inactivo'
                 });
@@ -627,7 +627,7 @@ class InventoryController {
 
             // Validar que el ID sea válido
             if (!id || isNaN(id)) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: 'El ID del producto debe ser un número válido' 
                 });
@@ -771,7 +771,7 @@ class InventoryController {
 
             // Validar que el ID sea válido
             if (!id || isNaN(id)) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: 'El ID del producto debe ser un número válido' 
                 });
@@ -791,7 +791,7 @@ class InventoryController {
 
             // Validar si el producto ya está inactivo
             if (!product.activo) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: `Este producto "${product.nombre}" ya no está disponible (ya ha sido eliminado previamente)`,
                     code: 'PRODUCT_ALREADY_INACTIVE'
@@ -939,7 +939,7 @@ class InventoryController {
 
             // Validar que el ID sea válido
             if (!id || isNaN(id)) {
-                return res.status(400).json({ 
+                return res.status(200).json({ 
                     success: false, 
                     message: 'El ID del proveedor debe ser un número válido' 
                 });
