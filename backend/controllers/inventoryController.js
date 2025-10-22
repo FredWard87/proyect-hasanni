@@ -1,8 +1,6 @@
-// controllers/inventoryController.js
 const inventoryService = require('../services/inventoryService');
 const { query } = require('../config/database');
-const emailService = require('../services/emailService'); // Agrega esta línea al inicio
-
+const emailService = require('../services/emailService');
 
 // Función para redondear a 2 decimales
 const roundToTwoDecimals = (num) => {
@@ -54,10 +52,9 @@ const checkAndSendLowStockAlerts = async (items) => {
 };
 
 // Función para enviar alerta de stock bajo por email
-// En inventoryController.js - modifica la consulta
 const sendLowStockAlert = async (lowStockProducts) => {
   try {
-    // Obtener email del administrador - CORREGIDO
+    // Obtener email del administrador
     const adminResult = await query(`
       SELECT email FROM usuarios WHERE rol = 'admin' AND activo = true LIMIT 1
     `);
@@ -201,10 +198,10 @@ class InventoryController {
         }
     }
 
-    // Crear producto - CON VALIDACIONES COMPLETAS
+    // Crear producto - CON VALIDACIONES COMPLETAS Y CAMPO STOCK
     async createProduct(req, res) {
         try {
-            const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = req.body;
+            const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock } = req.body;
             const errors = [];
 
             // Validación de tipos
@@ -276,19 +273,6 @@ class InventoryController {
                 errors.push('La descripción no puede exceder 500 caracteres');
             }
 
-            if (categoria && typeof categoria === 'string') {
-                if (categoria.trim().length < 2) {
-                    errors.push('La categoría debe tener al menos 2 caracteres');
-                }
-                if (categoria.trim().length > 50) {
-                    errors.push('La categoría no puede exceder 50 caracteres');
-                }
-            }
-
-            if (unidad && typeof unidad === 'string' && unidad.trim().length > 50) {
-                errors.push('La unidad no puede exceder 50 caracteres');
-            }
-
             // Validaciones numéricas
             if (stock_minimo !== undefined && stock_minimo !== null) {
                 if (!Number.isInteger(Number(stock_minimo))) {
@@ -297,6 +281,17 @@ class InventoryController {
                     errors.push('El stock mínimo no puede ser negativo');
                 } else if (Number(stock_minimo) > 999999) {
                     errors.push('El stock mínimo no puede exceder 999999');
+                }
+            }
+
+            // Validación para stock
+            if (stock !== undefined && stock !== null) {
+                if (!Number.isInteger(Number(stock))) {
+                    errors.push('El stock debe ser un número entero');
+                } else if (Number(stock) < 0) {
+                    errors.push('El stock no puede ser negativo');
+                } else if (Number(stock) > 999999) {
+                    errors.push('El stock no puede exceder 999999');
                 }
             }
 
@@ -328,7 +323,7 @@ class InventoryController {
                 });
             }
 
-            // Crear el producto
+            // Crear el producto CON STOCK
             const product = await inventoryService.createProduct({
                 codigo: codigo.trim(),
                 nombre: nombre.trim(),
@@ -336,7 +331,8 @@ class InventoryController {
                 categoria: categoria.trim(),
                 unidad: unidad.trim(),
                 stock_minimo: Number(stock_minimo),
-                precio: precio ? roundToTwoDecimals(Number(precio)) : 0
+                precio: precio ? roundToTwoDecimals(Number(precio)) : 0,
+                stock: stock !== undefined ? Number(stock) : 0 // Stock inicial
             });
 
             res.status(201).json({ 
@@ -618,11 +614,11 @@ class InventoryController {
         }
     }
 
-    // Actualizar producto - CON VALIDACIONES Y REDONDEO DE PRECIO
+    // Actualizar producto - CON VALIDACIONES, REDONDEO DE PRECIO Y CAMPO STOCK
     async updateProduct(req, res) {
         try {
             const { id } = req.params;
-            const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = req.body;
+            const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock } = req.body;
             const errors = [];
 
             // Validar que el ID sea válido
@@ -703,6 +699,17 @@ class InventoryController {
                 }
             }
 
+            // Validación para stock
+            if (stock !== undefined && stock !== null) {
+                if (!Number.isInteger(Number(stock))) {
+                    errors.push('El stock debe ser un número entero');
+                } else if (Number(stock) < 0) {
+                    errors.push('El stock no puede ser negativo');
+                } else if (Number(stock) > 999999) {
+                    errors.push('El stock no puede exceder 999999');
+                }
+            }
+
             if (precio !== undefined && precio !== null) {
                 if (isNaN(precio)) {
                     errors.push('El precio debe ser un número válido');
@@ -741,7 +748,7 @@ class InventoryController {
                 }
             }
 
-            // Preparar datos para actualización con redondeo de precio
+            // Preparar datos para actualización con redondeo de precio Y STOCK
             const updateData = {
                 codigo: codigo ? codigo.trim() : undefined,
                 nombre: nombre ? nombre.trim() : undefined,
@@ -749,7 +756,8 @@ class InventoryController {
                 categoria: categoria ? categoria.trim() : undefined,
                 unidad: unidad ? unidad.trim() : undefined,
                 stock_minimo: stock_minimo !== undefined ? Number(stock_minimo) : undefined,
-                precio: precio !== undefined ? roundToTwoDecimals(Number(precio)) : undefined
+                precio: precio !== undefined ? roundToTwoDecimals(Number(precio)) : undefined,
+                stock: stock !== undefined ? Number(stock) : undefined
             };
 
             const product = await inventoryService.updateProduct(id, updateData);

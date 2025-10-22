@@ -14,25 +14,50 @@ class InventoryService {
     }
 
     async createProduct(productData) {
-        const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = productData;
+        const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock } = productData;
         const result = await query(
             `INSERT INTO productos 
              (codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock, activo) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-            [codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio || 0, 0, true]
+            [codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio || 0, stock || 0, true]
         );
         return result.rows[0];
     }
 
     async updateProduct(id, productData) {
-        const { codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio } = productData;
-        const result = await query(
-            `UPDATE productos SET 
-                codigo = $1, nombre = $2, descripcion = $3, categoria = $4, 
-                unidad = $5, stock_minimo = $6, precio = $7, fecha_actualizacion = CURRENT_TIMESTAMP
-             WHERE id = $8 RETURNING *`,
-            [codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, id]
-        );
+        const fields = [];
+        const values = [];
+        let paramCount = 1;
+
+        // Construir dinámicamente la consulta UPDATE
+        Object.keys(productData).forEach(key => {
+            if (productData[key] !== undefined) {
+                fields.push(`${key} = $${paramCount}`);
+                values.push(productData[key]);
+                paramCount++;
+            }
+        });
+
+        if (fields.length === 0) {
+            throw new Error('No hay campos para actualizar');
+        }
+
+        // Agregar fecha de actualización
+        fields.push(`fecha_actualizacion = $${paramCount}`);
+        values.push(new Date());
+        paramCount++;
+
+        // Agregar ID al final
+        values.push(id);
+
+        const queryText = `
+            UPDATE productos 
+            SET ${fields.join(', ')}
+            WHERE id = $${paramCount}
+            RETURNING *
+        `;
+
+        const result = await query(queryText, values);
         return result.rows[0];
     }
 

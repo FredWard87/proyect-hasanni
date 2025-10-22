@@ -125,7 +125,7 @@ const Reportes = () => {
     codigo: '',
     nombre: '',
     descripcion: '',
-    stock_actual: 0,
+    stock: 0,
     categoria: '',
     unidad: 'unidad',
     stock_minimo: 0,
@@ -149,15 +149,29 @@ const Reportes = () => {
   const cargarInventarioCompleto = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/inventario`, {
+      // CAMBIO: Usar la ruta /pagos/productos que sí funciona correctamente
+      const response = await axios.get(`${API_URL}/pagos/productos`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
-        console.log('📦 Inventario cargado:', response.data.data);
+        console.log('📦 Inventario cargado desde /pagos/productos:', response.data.data);
         setInventarioCompleto(response.data.data);
       }
     } catch (err) {
       console.error('Error cargando inventario:', err);
+      // Fallback: intentar con la ruta original
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${API_URL}/inventario`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.success) {
+          console.log('📦 Inventario cargado desde /inventario:', response.data.data);
+          setInventarioCompleto(response.data.data);
+        }
+      } catch (fallbackErr) {
+        console.error('Error cargando inventario fallback:', fallbackErr);
+      }
     }
   };
 
@@ -250,7 +264,7 @@ const Reportes = () => {
       codigo: '',
       nombre: '',
       descripcion: '',
-        stock_actual: 0,
+      stock: 0,
       categoria: '',
       unidad: 'unidad',
       stock_minimo: 0,
@@ -270,7 +284,7 @@ const Reportes = () => {
       categoria: producto.categoria || '',
       unidad: producto.unidad || 'unidad',
       stock_minimo: producto.stock_minimo || 0,
-        stock_actual: producto.stock || 0,
+      stock: producto.stock || 0,
       precio: producto.precio || 0
     });
     setModalProducto(true);
@@ -848,7 +862,6 @@ const Reportes = () => {
                                 <Chip label={cat.cantidad_productos} size="small" />
                               </TableCell>
                               <TableCell align="center">{cat.total_stock}</TableCell>
-                              
                               <TableCell align="center">{cat.promedio_stock}</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 600, color: 'success.main' }}>
                                 {formatearMoneda(cat.valor_total)}
@@ -1635,6 +1648,18 @@ const Reportes = () => {
               <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
+                  label="Stock Inicial"
+                  name="stock"
+                  type="number"
+                  value={formProducto.stock}
+                  onChange={handleInputChange}
+                  required
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
                   label="Stock Mínimo"
                   name="stock_minimo"
                   type="number"
@@ -1644,7 +1669,7 @@ const Reportes = () => {
                   inputProps={{ min: 0 }}
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Precio"
