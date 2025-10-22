@@ -418,21 +418,25 @@ const Usuarios = () => {
   };
 
   // Obtener usuario autenticado desde el backend
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+  // Obtener usuario autenticado desde el backend
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    navigate('/');
+    return;
+  }
+  axios.get(`${API_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+   .then(res => {
+  console.log('👤 Usuario cargado:', res.data);
+  setUser(res.data.data); // ✅ Esto guarda solo { id: 1, nombre: '...', rol: 'admin' }
+})
+    .catch(() => {
+      setUser(null);
       navigate('/');
-      return;
-    }
-    axios.get(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => setUser(res.data))
-      .catch(() => {
-        setUser(null);
-        navigate('/');
-      });
-  }, [navigate]);
+    });
+}, [navigate]);
 
   // Cargar usuarios
   useEffect(() => {
@@ -677,10 +681,10 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     });
   };
 
-  const getInitials = (nombre) => {
-    return nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
+ const getInitials = (nombre) => {
+  if (!nombre) return '??';
+  return nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+};
   const handleLogout = () => {
     // Limpiar todos los datos de autenticación
     localStorage.removeItem('token');
@@ -708,14 +712,14 @@ const enviarRestablecimientoContraseña = async (usuario) => {
           {/* CAMPANITA REAL */}
           <NotificationBell />
 
-          {user && (
-            <>
-              <Chip
-                label={`${user.nombre} (${user.rol})`}
-                color={user.rol === 'admin' ? 'error' : user.rol === 'editor' ? 'warning' : 'success'}
-                sx={{ mr: 2, fontWeight: 600 }}
-                avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
-              />
+          {user && user.nombre && user.rol && (
+  <>
+    <Chip
+      label={`${user.nombre} (${user.rol})`}
+      color={user.rol === 'admin' ? 'error' : user.rol === 'editor' ? 'warning' : 'success'}
+      sx={{ mr: 2, fontWeight: 600 }}
+      avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
+    />
               
               <Button
                 variant="outlined"
@@ -743,6 +747,28 @@ const enviarRestablecimientoContraseña = async (usuario) => {
               >
                 Mi Ubicación
               </Button>
+
+<Button
+  variant="outlined"
+  onClick={() => navigate('/reportes')}
+  sx={{ 
+    bgcolor: 'rgba(255,255,255,0.9)',
+    color: 'primary.main',
+    mr: 2
+  }}
+>
+  Reportes
+</Button>
+
+<Button
+  variant="outlined"
+  onClick={() => navigate('/proveedores')}
+  
+  sx={{     bgcolor: 'rgba(255,255,255,0.9)',
+mr: 2 }}
+>
+  Proveedores
+</Button>
 
               {/* Botón para Tienda */}
               <Button

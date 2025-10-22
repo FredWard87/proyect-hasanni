@@ -10,6 +10,8 @@ import Shoppi from './components/ShoppingCart';
 import AdminPayments from './components/AdminPayments';
 import PreferentUserMode from './components/preferentuser';
 import Campanita from './components/NotificationBell.js'
+import Inventory from './components/Reportes';
+import Proveedores from './components/Proveedores';
 
 // AGREGAR ESTOS IMPORTS:
 import { PaymentSuccess, PaymentCancel } from './components/paypal';
@@ -196,7 +198,22 @@ function App() {
                   </BiometricGuard>
                 </AuthGuard>
               } />
+
+              <Route path="/proveedores" element={
+                <AuthGuard>
+                  <BiometricGuard>
+                    <Proveedores />
+                  </BiometricGuard>
+                </AuthGuard>
+              } />
               
+              <Route path="/reportes" element={
+                <AuthGuard>
+                  <BiometricGuard>
+                    <Inventory />
+                  </BiometricGuard>
+                </AuthGuard>
+              } />
               <Route path="/shop" element={
                 <AuthGuard>
                   <BiometricGuard>
