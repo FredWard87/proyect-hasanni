@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import axios from 'axios';
+
+// ✅ Configuración global de axios para bypass de ngrok
+axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+axios.defaults.headers.common['User-Agent'] = 'CustomAgent';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
