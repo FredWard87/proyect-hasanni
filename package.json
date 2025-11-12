@@ -16,7 +16,8 @@
     "dev:frontend": "cd frontend && npm run dev",
     "start:sonar": "docker-compose -f docker-compose.sonar.yml up -d",
     "stop:sonar": "docker-compose -f docker-compose.sonar.yml down",
-    "logs:sonar": "docker-compose -f docker-compose.sonar.yml logs -f"
+    "logs:sonar": "docker-compose -f docker-compose.sonar.yml logs -f",
+    "test": "npm run test:backend && npm run test:frontend"
   },
   "keywords": [
     "mvc",

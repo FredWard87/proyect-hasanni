@@ -38,12 +38,31 @@ const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 // === MIDDLEWARE ===
 
 // CORS - Permitir solicitudes del frontend
+// CORS - Permitir solicitudes del frontend
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'https://proyect-hasanni.onrender.com',
+    'https://fast-nails-obey.loca.lt',
+    'https://soft-rats-invent.loca.lt',
+    'https://gold-kids-sip.loca.lt',
+    'https://sixty-coats-relate.loca.lt',
+    'https://miapireact.loca.lt' // ← Agrega también el dominio de localtunnel
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'ngrok-skip-browser-warning' // ← AGREGAR ESTA LÍNEA
+  ],
   credentials: true
 }));
+
+// Bypass ngrok warning page - MANTÉN ESTE MIDDLEWARE
+app.use((req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  next();
+});
 
 // Para parsing de JSON y datos de formularios
 app.use(express.json({ limit: '10mb' }));

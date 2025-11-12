@@ -1,0 +1,1115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testExecutions version="1">
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\inventoryService.test.js">
+    <testCase name="InventoryService Product Operations should get all active products" duration="18"/>
+    <testCase name="InventoryService Product Operations should get product by ID" duration="4"/>
+    <testCase name="InventoryService Product Operations should return undefined for non-existent product" duration="13"/>
+    <testCase name="InventoryService Product Operations should create new product" duration="10">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+- Expected
++ Received
+
+- "INSERT INTO productos 
+         (codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock, activo) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
++ "INSERT INTO productos 
+             (codigo, nombre, descripcion, categoria, unidad, stock_minimo, precio, stock, activo) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+  ["TEST001", "Nuevo Producto", "Descripción test", "Test", "pz", 10, 100.5, 20, true],
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\inventoryService.test.js:86:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="InventoryService Product Operations should update product" duration="5"/>
+    <testCase name="InventoryService Product Operations should delete product (soft delete)" duration="5"/>
+    <testCase name="InventoryService Inventory Operations should get inventory with default filters" duration="8"/>
+    <testCase name="InventoryService Inventory Operations should get low stock products" duration="6">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+Expected: StringContaining "WHERE stock < stock_minimo AND activo = true", []
+Received: "
+            SELECT * FROM productos 
+            WHERE stock < stock_minimo AND activo = true 
+            ORDER BY (stock_minimo - stock) DESC
+        "
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\inventoryService.test.js:153:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="InventoryService Movement Operations should register movement" duration="5">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+- Expected
++ Received
+
+- "INSERT INTO movimientos_inventario 
+         (tipo, id_producto, cantidad, referencia, documento, responsable, id_proveedor, id_usuario, observaciones)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
++ "INSERT INTO movimientos_inventario 
+             (tipo, id_producto, cantidad, referencia, documento, responsable, id_proveedor, id_usuario, observaciones)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+  ["entrada", 1, 10, "REF001", "DOC001", "Test User", 1, 1, "Test movement"],
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\inventoryService.test.js:180:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="InventoryService Movement Operations should get movements with filters" duration="4"/>
+    <testCase name="InventoryService Dashboard Data should get dashboard data" duration="4"/>
+    <testCase name="InventoryService Error Handling should handle database errors in getAllProducts" duration="5"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\middlewares\biometricMiddleware.test.js">
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token should return 401 if no authorization header" duration="16"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token should return 401 if authorization header is empty" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token should return 401 if token is missing after Bearer" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token should extract token correctly from Bearer header" duration="5"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token biométrico should return 401 if token is not biometric type" duration="2"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token biométrico should return 401 if biometric flag is missing" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de token biométrico should return 401 if type is not biometric_session" duration="5"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de usuario en BD should return 401 if user not found in database" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de usuario en BD should return 401 if biometric is not enabled for user" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Validación de usuario en BD should return 401 if biometric_enabled is null" duration="2"/>
+    <testCase name="Biometric Middleware verifyBiometric - Verificación exitosa should set req.user and call next on successful verification" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Verificación exitosa should work with different userId values" duration="2"/>
+    <testCase name="Biometric Middleware verifyBiometric - Manejo de errores JWT should return 401 with expired flag for expired tokens" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Manejo de errores JWT should handle generic JWT errors" duration="1"/>
+    <testCase name="Biometric Middleware verifyBiometric - Manejo de errores JWT should handle database errors" duration="1"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should set requiresBiometricSetup to true for new users without biometric" duration="2"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should set requiresBiometricSetup to false for users with biometric enabled" duration="0"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should set requiresBiometricSetup to false for old users without biometric" duration="0"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should handle empty database results" duration="1"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should handle database errors gracefully" duration="1"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Validación de setup should not crash if req.user is missing" duration="8"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Casos extremos should handle null biometric_enabled" duration="1"/>
+    <testCase name="Biometric Middleware checkBiometricSetup - Casos extremos should handle null is_new_user" duration="4">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: null
+    at Object.toBe (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\middlewares\biometricMiddleware.test.js:431:42)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js">
+    <testCase name="Usuario Model Constructor should create usuario with all parameters" duration="7"/>
+    <testCase name="Usuario Model Constructor should create usuario with default values" duration="1"/>
+    <testCase name="Usuario Model Static Properties should have valid roles" duration="2"/>
+    <testCase name="Usuario Model Static Properties should have validation constants" duration="1"/>
+    <testCase name="Usuario Model validarId should validate correct IDs" duration="1"/>
+    <testCase name="Usuario Model validarId should reject invalid IDs" duration="4">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: true
+    at Object.toBe (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js:68:38)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Model validarNombre should accept valid names" duration="3"/>
+    <testCase name="Usuario Model validarNombre should reject empty or null names" duration="1"/>
+    <testCase name="Usuario Model validarNombre should reject names too short" duration="1"/>
+    <testCase name="Usuario Model validarNombre should reject names too long" duration="1"/>
+    <testCase name="Usuario Model validarNombre should reject names with invalid characters" duration="3"/>
+    <testCase name="Usuario Model validarNombre should reject names with multiple spaces" duration="1"/>
+    <testCase name="Usuario Model validarNombre should reject non-string names" duration="1"/>
+    <testCase name="Usuario Model validarEmail should accept valid emails" duration="1"/>
+    <testCase name="Usuario Model validarEmail should reject empty or null emails" duration="1"/>
+    <testCase name="Usuario Model validarEmail should reject invalid email formats" duration="3"/>
+    <testCase name="Usuario Model validarEmail should reject emails too long" duration="0"/>
+    <testCase name="Usuario Model validarEmail should reject temporary email domains" duration="0"/>
+    <testCase name="Usuario Model validarEmail should reject non-string emails" duration="1"/>
+    <testCase name="Usuario Model validarEmail should trim and lowercase emails" duration="1"/>
+    <testCase name="Usuario Model validarPassword should accept valid passwords" duration="6"/>
+    <testCase name="Usuario Model validarPassword should reject empty or null passwords" duration="1"/>
+    <testCase name="Usuario Model validarPassword should reject passwords too short" duration="0"/>
+    <testCase name="Usuario Model validarPassword should reject passwords too long" duration="1"/>
+    <testCase name="Usuario Model validarPassword should reject passwords with spaces" duration="0"/>
+    <testCase name="Usuario Model validarPassword should require uppercase letter" duration="1"/>
+    <testCase name="Usuario Model validarPassword should require lowercase letter" duration="0"/>
+    <testCase name="Usuario Model validarPassword should require number" duration="0"/>
+    <testCase name="Usuario Model validarPassword should require special character" duration="4">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected value: "La contraseña debe contener al menos un carácter especial"
+Received array: ["La contraseña debe contener al menos un carácter especial (!@#$%^&*(),.?\":{}|<>)"]
+    at Object.toContain (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js:227:51)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Model validarPassword should reject common passwords" duration="1">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected value: "La contraseña es demasiado común"
+Received array: []
+    at Object.toContain (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js:233:55)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Model validarPassword should reject non-string passwords" duration="0"/>
+    <testCase name="Usuario Model validarPIN should accept valid PINs" duration="1"/>
+    <testCase name="Usuario Model validarPIN should reject empty or null PINs" duration="1"/>
+    <testCase name="Usuario Model validarPIN should reject PINs with wrong length" duration="2"/>
+    <testCase name="Usuario Model validarPIN should reject non-numeric PINs" duration="0"/>
+    <testCase name="Usuario Model validarPIN should reject common PINs" duration="1">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected value: "El PIN es demasiado común"
+Received array: ["El PIN es demasiado común, elige uno más seguro"]
+    at Object.toContain (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js:276:42)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Model validarPIN should reject non-string PINs" duration="1"/>
+    <testCase name="Usuario Model validarRol should accept valid roles" duration="1"/>
+    <testCase name="Usuario Model validarRol should accept roles with different casing" duration="0"/>
+    <testCase name="Usuario Model validarRol should reject empty or null roles" duration="1"/>
+    <testCase name="Usuario Model validarRol should reject invalid roles" duration="1"/>
+    <testCase name="Usuario Model validarRol should reject non-string roles" duration="1"/>
+    <testCase name="Usuario Model obtenerTodos should get all users successfully" duration="4"/>
+    <testCase name="Usuario Model obtenerTodos should handle database errors" duration="50"/>
+    <testCase name="Usuario Model obtenerPorId should get user by ID successfully" duration="1"/>
+    <testCase name="Usuario Model obtenerPorId should return null if user not found" duration="1"/>
+    <testCase name="Usuario Model obtenerPorId should throw error for invalid ID" duration="1"/>
+    <testCase name="Usuario Model obtenerPorId should handle database errors" duration="1"/>
+    <testCase name="Usuario Model obtenerPorEmail should get user by email successfully" duration="0"/>
+    <testCase name="Usuario Model obtenerPorEmail should return null if user not found" duration="1"/>
+    <testCase name="Usuario Model obtenerPorEmail should handle case-insensitive email" duration="1"/>
+    <testCase name="Usuario Model obtenerPorEmail should trim email" duration="1"/>
+    <testCase name="Usuario Model obtenerPorEmail should throw error for invalid email" duration="2"/>
+    <testCase name="Usuario Model encriptarPassword should encrypt password successfully" duration="1"/>
+    <testCase name="Usuario Model encriptarPassword should not encrypt if password is empty" duration="2"/>
+    <testCase name="Usuario Model encriptarPassword should use SALT_ROUNDS from env" duration="1"/>
+    <testCase name="Usuario Model verificarPassword should verify correct password" duration="0"/>
+    <testCase name="Usuario Model verificarPassword should reject incorrect password" duration="1"/>
+    <testCase name="Usuario Model verificarPassword should return false if password is null" duration="2">
+      <failure message="Error: expect(jest.fn()).not.toHaveBeenCalled()"><![CDATA[Error: expect(jest.fn()).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 1
+
+1: "any_password", ""
+    at Object.toHaveBeenCalled (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\Usuario.test.js:486:34)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="Usuario Model encriptarPIN should encrypt PIN successfully" duration="1"/>
+    <testCase name="Usuario Model verificarPIN should verify correct PIN" duration="1"/>
+    <testCase name="Usuario Model verificarPIN should reject incorrect PIN" duration="1"/>
+    <testCase name="Usuario Model estaPINBloqueado should return true if locked until future date" duration="0"/>
+    <testCase name="Usuario Model estaPINBloqueado should return true if failed attempts &gt;= 5" duration="1"/>
+    <testCase name="Usuario Model estaPINBloqueado should return false if not locked" duration="1"/>
+    <testCase name="Usuario Model guardar should save new user successfully" duration="1"/>
+    <testCase name="Usuario Model guardar should reject duplicate email" duration="1"/>
+    <testCase name="Usuario Model guardar should reject invalid data" duration="1"/>
+    <testCase name="Usuario Model guardar should save Google user without password" duration="1"/>
+    <testCase name="Usuario Model actualizar should update user successfully" duration="0"/>
+    <testCase name="Usuario Model actualizar should throw error if no ID" duration="0"/>
+    <testCase name="Usuario Model actualizar should reject duplicate email from other user" duration="1"/>
+    <testCase name="Usuario Model actualizar should update password if provided" duration="1"/>
+    <testCase name="Usuario Model eliminar should delete user successfully" duration="1"/>
+    <testCase name="Usuario Model eliminar should throw error if no ID" duration="1"/>
+    <testCase name="Usuario Model eliminar should throw error if user not found" duration="0"/>
+    <testCase name="Usuario Model configurarPIN should configure PIN successfully" duration="1"/>
+    <testCase name="Usuario Model configurarPIN should reject invalid PIN" duration="1"/>
+    <testCase name="Usuario Model deshabilitarBiometrico should disable biometric successfully" duration="0"/>
+    <testCase name="Usuario Model toJSON should remove sensitive data" duration="1"/>
+    <testCase name="Usuario Model obtenerEstadisticasPorRol should get statistics by role" duration="0"/>
+    <testCase name="Usuario Model Token Management should generate and save token" duration="2"/>
+    <testCase name="Usuario Model Token Management should get valid token" duration="0"/>
+    <testCase name="Usuario Model Token Management should return null for invalid token" duration="1"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\GeoLocation.test.js">
+    <testCase name="GeoLocation Models GeoLocationService Constructor should initialize with Google Maps API key" duration="9">
+      <failure message="Error: expect(received).toBe(expected) // Object.is equality"><![CDATA[Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "test_api_key"
+Received: undefined
+    at Object.toBe (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\models\GeoLocation.test.js:28:48)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="GeoLocation Models GeoLocationService Constructor should work without API key" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService saveUserLocation should save user location successfully" duration="2"/>
+    <testCase name="GeoLocation Models GeoLocationService saveUserLocation should save location with minimal data" duration="2"/>
+    <testCase name="GeoLocation Models GeoLocationService saveUserLocation should throw error for invalid coordinates" duration="8"/>
+    <testCase name="GeoLocation Models GeoLocationService saveUserLocation should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService saveUserLocation should use custom source parameter" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should get location by IP successfully" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should reject local IP addresses" duration="2"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should reject ::1 (IPv6 localhost)" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should handle API errors gracefully" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should handle API error response" duration="0"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationByIP should reject unknown IP" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService reverseGeocode should reverse geocode coordinates successfully" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService reverseGeocode should return null if API key not configured" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService reverseGeocode should handle API errors" duration="5"/>
+    <testCase name="GeoLocation Models GeoLocationService reverseGeocode should handle non-OK status" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService reverseGeocode should fallback to administrative_area_level_2 for city" duration="0"/>
+    <testCase name="GeoLocation Models GeoLocationService getNearbyUsers should get nearby users successfully" duration="2"/>
+    <testCase name="GeoLocation Models GeoLocationService getNearbyUsers should throw error if user has no location" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getNearbyUsers should throw error if user location is null" duration="2"/>
+    <testCase name="GeoLocation Models GeoLocationService getNearbyUsers should use custom radius and limit" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getNearbyUsers should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationHistory should get location history successfully" duration="6"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationHistory should use default limit" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService getLocationHistory should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService isValidCoordinates should validate correct coordinates" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService isValidCoordinates should reject invalid latitude" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService isValidCoordinates should reject invalid longitude" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService isValidCoordinates should reject NaN values" duration="0"/>
+    <testCase name="GeoLocation Models GeoLocationService isValidCoordinates should handle string numbers" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService extractAddressComponent should extract long_name by default" duration="0"/>
+    <testCase name="GeoLocation Models GeoLocationService extractAddressComponent should extract short_name when specified" duration="1"/>
+    <testCase name="GeoLocation Models GeoLocationService extractAddressComponent should return null if component not found" duration="0"/>
+    <testCase name="GeoLocation Models GeoLocationService extractAddressComponent should handle empty components array" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService Constructor should initialize with cache version" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService Constructor should use default cache version" duration="0"/>
+    <testCase name="GeoLocation Models OfflineService getOfflineData should get offline data successfully" duration="3"/>
+    <testCase name="GeoLocation Models OfflineService getOfflineData should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService storePendingAction should store pending action successfully" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService storePendingAction should serialize data to JSON" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService storePendingAction should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService processPendingActions should process pending actions successfully" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService processPendingActions should handle failed actions" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService processPendingActions should handle database errors" duration="1"/>
+    <testCase name="GeoLocation Models OfflineService processAction should handle update_location action" duration="27"/>
+    <testCase name="GeoLocation Models OfflineService processAction should throw error for unknown action type" duration="1"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\reportRoutes.test.js">
+    <testCase name="Report Routes GET /api/reports/categories should get category report successfully" duration="64"/>
+    <testCase name="Report Routes GET /api/reports/categories should handle database errors in categories report" duration="7"/>
+    <testCase name="Report Routes GET /api/reports/categories should return empty array when no categories found" duration="8"/>
+    <testCase name="Report Routes GET /api/reports/movements-by-period should get movements by period successfully with date parameters" duration="18"/>
+    <testCase name="Report Routes GET /api/reports/movements-by-period should handle missing date parameters" duration="13"/>
+    <testCase name="Report Routes GET /api/reports/movements-by-period should handle database errors in movements report" duration="8"/>
+    <testCase name="Report Routes GET /api/reports/top-products should get top products with default parameters" duration="8"/>
+    <testCase name="Report Routes GET /api/reports/top-products should get top products with custom parameters" duration="13">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+- Expected
++ Received
+
+  "
+            SELECT 
+                p.id,
+                p.codigo,
+                p.nombre,
+                p.categoria,
+                COUNT(*) as total_movimientos,
+                SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE 0 END) as total_entradas,
+                SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END) as total_salidas,
+                (SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE 0 END) - 
+                 SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END)) as neto
+            FROM movimientos_inventario m
+            JOIN productos p ON m.id_producto = p.id
+            WHERE m.fecha >= CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY p.id, p.codigo, p.nombre, p.categoria
+            ORDER BY total_movimientos DESC
+            LIMIT $1
+        ",
+  Array [
+-   5,
++   "5",
+  ],
+
+Number of calls: 1
+    at Object.toHaveBeenCalledWith (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\reportRoutes.test.js:217:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="Report Routes GET /api/reports/top-products should handle database errors in top products report" duration="24"/>
+    <testCase name="Report Routes GET /api/reports/top-products should handle invalid limit parameter" duration="12"/>
+    <testCase name="Report Routes Route Structure should have all report routes defined" duration="1"/>
+    <testCase name="Report Routes Response Format Consistency should maintain consistent success response format" duration="6"/>
+    <testCase name="Report Routes Response Format Consistency should maintain consistent error response format" duration="9"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\emailService.test.js">
+    <testCase name="EmailService Constructor should create transporter with correct configuration" duration="6"/>
+    <testCase name="EmailService sendEmail should send email successfully" duration="19"/>
+    <testCase name="EmailService sendEmail should handle email sending errors" duration="14"/>
+    <testCase name="EmailService sendStockAlert should send stock alert email with correct format" duration="23"/>
+    <testCase name="EmailService sendStockAlert should handle empty products array" duration="5"/>
+    <testCase name="EmailService Error Handling should log error when email fails" duration="9"/>
+    <testCase name="EmailService Error Handling should log success when email sent" duration="5"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\UsuarioController.test.js">
+    <testCase name="Usuario Controller GET /usuarios should return all users with statistics" duration="38"/>
+    <testCase name="Usuario Controller GET /usuarios/:id should return user by ID" duration="8"/>
+    <testCase name="Usuario Controller GET /usuarios/:id should return 404 for non-existent user" duration="6"/>
+    <testCase name="Usuario Controller POST /usuarios should create user successfully" duration="35"/>
+    <testCase name="Usuario Controller POST /usuarios should validate required fields" duration="12"/>
+    <testCase name="Usuario Controller POST /usuarios should reject duplicate email" duration="24">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 201
+Received array: [400, 409]
+    at Object.toContain (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\UsuarioController.test.js:149:26)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="Usuario Controller PUT /usuarios/:id should update user successfully" duration="11"/>
+    <testCase name="Usuario Controller DELETE /usuarios/:id should delete user successfully" duration="8"/>
+    <testCase name="Usuario Controller GET /usuarios/roles should return valid roles or handle missing endpoint" duration="10"/>
+    <testCase name="Usuario Controller GET /health should return health check information" duration="17"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\notificationRoutes.test.js">
+    <testCase name="Notification Routes GET /api/notifications should get user notifications with auth" duration="60"/>
+    <testCase name="Notification Routes GET /api/notifications should support pagination parameters" duration="16"/>
+    <testCase name="Notification Routes GET /api/notifications/unread-count should get unread notifications count" duration="18"/>
+    <testCase name="Notification Routes PATCH /api/notifications/:notificationId/read should mark notification as read" duration="23"/>
+    <testCase name="Notification Routes PATCH /api/notifications/:notificationId/read should handle invalid notification ID" duration="15"/>
+    <testCase name="Notification Routes PATCH /api/notifications/mark-all-read should mark all notifications as read" duration="8"/>
+    <testCase name="Notification Routes POST /api/notifications should create notification (admin only)" duration="21"/>
+    <testCase name="Notification Routes POST /api/notifications/test should trigger test notification" duration="6"/>
+    <testCase name="Notification Routes Authentication should apply auth middleware to all routes" duration="2">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalled()"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: >= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\notificationRoutes.test.js:197:30)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Notification Routes Route Configuration should have all notification routes defined" duration="1"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\UsuarioRoutes.test.js">
+    <testCase name="Usuario Routes GET /api/health should return health check successfully" duration="89"/>
+    <testCase name="Usuario Routes GET /api/health should apply auth middleware to all routes" duration="2">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalled()"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: >= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\UsuarioRoutes.test.js:57:30)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Routes GET /api/health should handle health check errors" duration="8"/>
+    <testCase name="Usuario Routes Route Configuration should have all usuario routes defined with correct methods" duration="2"/>
+    <testCase name="Usuario Routes Route Configuration should apply authentication to all routes" duration="2">
+      <failure message="Error: expect(jest.fn()).toHaveBeenCalled()"><![CDATA[Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: >= 1
+Received number of calls:    0
+    at Object.toHaveBeenCalled (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\UsuarioRoutes.test.js:132:30)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Usuario Routes Route Integration should call correct controller methods for each route" duration="47"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\biometricRoutes.test.js">
+    <testCase name="Biometric Routes Public Routes POST /biometric/request-pin-reset should request PIN reset successfully" duration="60"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/request-pin-reset should handle user not found" duration="7"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/request-pin-reset should not require authentication" duration="8"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/verify-code-only should verify code successfully" duration="18"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/verify-code-only should reject invalid code" duration="7"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/reset-pin-final should reset PIN with code successfully" duration="11"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/reset-pin-final should validate PIN format" duration="20"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/check-reset-status should check reset status successfully" duration="8"/>
+    <testCase name="Biometric Routes Public Routes POST /biometric/check-reset-status should handle expired code" duration="11"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/setup-pin should setup PIN successfully" duration="8"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/setup-pin should require authentication" duration="6"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/setup-pin should reject common PIN" duration="5"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/verify-pin should verify PIN successfully" duration="8"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/verify-pin should reject incorrect PIN" duration="6"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/verify-pin should handle locked account" duration="7"/>
+    <testCase name="Biometric Routes Protected Routes GET /biometric/status should get PIN status successfully" duration="5"/>
+    <testCase name="Biometric Routes Protected Routes GET /biometric/status should handle user without biometric" duration="5"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/disable should disable biometric successfully" duration="5"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/disable should handle already disabled biometric" duration="8"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/change-pin should change PIN successfully" duration="6"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/change-pin should reject incorrect current PIN" duration="5"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/change-pin should validate new PIN format" duration="4"/>
+    <testCase name="Biometric Routes Protected Routes POST /biometric/change-pin should reject same PIN" duration="5"/>
+    <testCase name="Biometric Routes Route Protection should allow public routes without authentication" duration="4"/>
+    <testCase name="Biometric Routes Route Protection should protect authenticated routes" duration="48"/>
+    <testCase name="Biometric Routes Error Handling should handle controller errors gracefully" duration="42">
+      <failure message="Error: expect(received).rejects.toThrow()"><![CDATA[Error: expect(received).rejects.toThrow()
+
+Received promise resolved instead of rejected
+Resolved to value: {"header": {"connection": "close", "content-length": "4234", "content-security-policy": "default-src 'none'", "content-type": "text/html; charset=utf-8", "date": "Thu, 23 Oct 2025 05:05:03 GMT", "x-content-type-options": "nosniff", "x-powered-by": "Express"}, "req": {"data": {"pin": "5678"}, "headers": {"authorization": "Bearer token123", "content-type": "application/json"}, "method": "POST", "url": "http://127.0.0.1:62926/biometric/setup-pin"}, "status": 500, "text": "<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>Error</title>
+</head>
+<body>
+<pre>Error: Unexpected error<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\__tests__\\routes\\biometricRoutes.test.js:508:15<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:305:39<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:312:13<br> &nbsp; &nbsp;at mockConstructor (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:102:19)<br> &nbsp; &nbsp;at setupPIN (eval at _createMockFunction (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:460:31), &lt;anonymous&gt;:3:54)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)<br> &nbsp; &nbsp;at next (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\route.js:149:13)<br> &nbsp; &nbsp;at next (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\__tests__\\routes\\biometricRoutes.test.js:24:7)<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:305:39<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:312:13<br> &nbsp; &nbsp;at mockConstructor (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\jest-mock\\build\\index.js:102:19)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)<br> &nbsp; &nbsp;at next (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\route.js:149:13)<br> &nbsp; &nbsp;at Route.dispatch (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\route.js:119:3)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:284:15<br> &nbsp; &nbsp;at Function.process_params (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)<br> &nbsp; &nbsp;at next (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)<br> &nbsp; &nbsp;at Function.handle (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:175:3)<br> &nbsp; &nbsp;at router (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:47:12)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)<br> &nbsp; &nbsp;at trim_prefix (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:286:9<br> &nbsp; &nbsp;at Function.process_params (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)<br> &nbsp; &nbsp;at next (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)<br> &nbsp; &nbsp;at C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\body-parser\\lib\\read.js:137:5<br> &nbsp; &nbsp;at AsyncResource.runInAsyncScope (node:async_hooks:206:9)<br> &nbsp; &nbsp;at invokeCallback (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\raw-body\\index.js:238:16)<br> &nbsp; &nbsp;at done (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\raw-body\\index.js:227:7)<br> &nbsp; &nbsp;at IncomingMessage.onEnd (C:\\Users\\fredw\\Desktop\\mvc-usuarios-react\\backend\\node_modules\\raw-body\\index.js:287:7)<br> &nbsp; &nbsp;at IncomingMessage.emit (node:events:511:28)<br> &nbsp; &nbsp;at endReadableNT (node:internal/streams/readable:1367:12)<br> &nbsp; &nbsp;at processTicksAndRejections (node:internal/process/task_queues:82:21)</pre>
+</body>
+</html>
+"}
+    at expect (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\expect\build\index.js:2116:15)
+    at Object.expect (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\biometricRoutes.test.js:511:13)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="Biometric Routes Error Handling should handle missing required fields" duration="7"/>
+    <testCase name="Biometric Routes Rate Limiting Scenarios should handle too many failed attempts" duration="5"/>
+    <testCase name="Biometric Routes Integration Scenarios should complete full PIN setup flow" duration="9"/>
+    <testCase name="Biometric Routes Integration Scenarios should complete full PIN reset flow" duration="27"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js">
+    <testCase name="ExcelReportService generateInventoryReport should generate inventory report with correct structure" duration="28">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:15:31)
+    at Object.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:64:43)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateInventoryReport should handle database errors" duration="41">
+      <failure message="Error: expect(received).rejects.toThrow(expected)"><![CDATA[Error: expect(received).rejects.toThrow(expected)
+
+Expected substring: "Database connection failed"
+Received message:   "Cannot set properties of undefined (setting 'columns')"
+
+      13 |         
+      14 |         // Configurar columnas
+    > 15 |         inventorySheet.columns = [
+         |                               ^
+      16 |             { header: 'Código', key: 'codigo', width: 15 },
+      17 |             { header: 'Nombre', key: 'nombre', width: 30 },
+      18 |             { header: 'Categoría', key: 'categoria', width: 20 },
+
+      at ExcelReportService.generateInventoryReport (services/excelReportService.js:15:31)
+      at Object.generateInventoryReport (__tests__/services/excelReportService.test.js:85:33)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\expect\build\index.js:2155:20)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:85:68)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateInventoryReport should include low stock sheet when requested" duration="14">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:15:31)
+    at Object.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:108:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateInventoryReport should include metrics sheet when requested" duration="25">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:15:31)
+    at Object.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:133:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateInventoryReport should handle empty product list" duration="8">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:15:31)
+    at Object.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:160:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateMovementsReport should generate movements report with date range" duration="8">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateMovementsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:82:31)
+    at Object.generateMovementsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:206:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateMovementsReport should handle empty movements data" duration="9">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateMovementsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:82:31)
+    at Object.generateMovementsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:235:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateTopProductsReport should generate top products report with default parameters" duration="13">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateTopProductsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:142:33)
+    at Object.generateTopProductsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:275:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateTopProductsReport should generate top products report with custom parameters" duration="6">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateTopProductsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:142:33)
+    at Object.generateTopProductsReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:304:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService generateTopProductsReport should handle database errors in top products report" duration="10">
+      <failure message="Error: expect(received).rejects.toThrow(expected)"><![CDATA[Error: expect(received).rejects.toThrow(expected)
+
+Expected substring: "Database error"
+Received message:   "Cannot set properties of undefined (setting 'columns')"
+
+      140 |
+      141 |         // Configurar columnas
+    > 142 |         topProductsSheet.columns = [
+          |                                 ^
+      143 |             { header: 'Código', key: 'codigo', width: 15 },
+      144 |             { header: 'Producto', key: 'producto', width: 30 },
+      145 |             { header: 'Categoría', key: 'categoria', width: 20 },
+
+      at ExcelReportService.generateTopProductsReport (services/excelReportService.js:142:33)
+      at Object.generateTopProductsReport (__tests__/services/excelReportService.test.js:315:33)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\expect\build\index.js:2155:20)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:315:70)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService Style Application should apply inventory styles correctly" duration="10"/>
+    <testCase name="ExcelReportService Helper Methods should have helper methods for additional sheets" duration="15"/>
+    <testCase name="ExcelReportService Helper Methods should handle errors in helper methods" duration="12">
+      <failure message="Error: expect(received).rejects.toThrow(expected)"><![CDATA[Error: expect(received).rejects.toThrow(expected)
+
+Expected substring: "Database error"
+Received message:   "Cannot read properties of undefined (reading 'rows')"
+
+      331 |         `);
+      332 |
+    > 333 |         lowStockData.rows.forEach(producto => {
+          |                      ^
+      334 |             lowStockSheet.addRow({
+      335 |                 codigo: producto.codigo,
+      336 |                 nombre: producto.nombre,
+
+      at ExcelReportService.rows [as addLowStockSheet] (services/excelReportService.js:333:22)
+      at Object.<anonymous> (__tests__/services/excelReportService.test.js:350:7)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\expect\build\index.js:2155:20)
+    at Object.toThrow (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:350:73)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+    <testCase name="ExcelReportService Data Formatting should format numbers correctly in inventory report" duration="8">
+      <failure message="TypeError: Cannot set properties of undefined (setting &apos;columns&apos;)"><![CDATA[TypeError: Cannot set properties of undefined (setting 'columns')
+    at ExcelReportService.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\services\excelReportService.js:15:31)
+    at Object.generateInventoryReport (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\excelReportService.test.js:396:26)
+    at Promise.finally.completed (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1557:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1497:10)
+    at _callCircusTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1007:40)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at _runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:947:3)
+    at C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:857:11)
+    at run (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\jestAdapterInit.js:1918:21)
+    at jestAdapter (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-circus\build\runner.js:101:19)
+    at runTestInternal (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:275:16)
+    at runTest (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:343:7)
+    at Object.worker (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\node_modules\jest-runner\build\testWorker.js:497:12)]]></failure>
+    </testCase>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\services\notificationService.test.js">
+    <testCase name="NotificationService Initialization should initialize with server" duration="41"/>
+    <testCase name="NotificationService Socket Handlers should handle user authentication successfully" duration="6"/>
+    <testCase name="NotificationService Socket Handlers should handle mark as read" duration="10"/>
+    <testCase name="NotificationService Notification Creation should create notification successfully" duration="3"/>
+    <testCase name="NotificationService Real-time Notification should send real-time notification to connected user" duration="11"/>
+    <testCase name="NotificationService Pending Notifications should send pending notifications to reconnected user" duration="26"/>
+    <testCase name="NotificationService Broadcast Operations should broadcast to multiple users" duration="7"/>
+    <testCase name="NotificationService Broadcast Operations should broadcast to all users" duration="5"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\paymentsRoutes.test.js">
+    <testCase name="Payments Routes GET /api/payments/productos should get products successfully" duration="39"/>
+    <testCase name="Payments Routes GET /api/payments/productos should handle server errors in getProducts" duration="9"/>
+    <testCase name="Payments Routes POST /api/payments/crear-orden should create PayPal order successfully" duration="31"/>
+    <testCase name="Payments Routes POST /api/payments/callback-paypal should handle PayPal callback successfully" duration="8"/>
+    <testCase name="Payments Routes GET /api/payments/ordenes should get user orders successfully" duration="6"/>
+    <testCase name="Payments Routes GET /api/payments/ordenes/:orderId should get order details successfully" duration="10"/>
+    <testCase name="Payments Routes GET /api/payments/ordenes/:orderId should handle order not found" duration="14"/>
+    <testCase name="Payments Routes Admin Routes GET /api/payments/admin/ordenes-pendientes should call admin middleware" duration="6"/>
+    <testCase name="Payments Routes Admin Routes POST /api/payments/admin/verificar-orden should verify order" duration="8"/>
+    <testCase name="Payments Routes Admin Routes POST /api/payments/admin/capturar-orden/:orderId should capture order" duration="5"/>
+    <testCase name="Payments Routes Admin Routes POST /api/payments/admin/aprobar-manual/:orderId should approve manually" duration="8"/>
+    <testCase name="Payments Routes Route Existence should have all payment routes defined" duration="17"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\paymentsController.test.js">
+    <testCase name="Payments Controller GET /payments/products should return active products" duration="33"/>
+    <testCase name="Payments Controller POST /payments/create-order should create PayPal order with valid items" duration="36"/>
+    <testCase name="Payments Controller POST /payments/create-order should reject order with insufficient stock" duration="7"/>
+    <testCase name="Payments Controller POST /payments/approve-order/:orderId should approve order manually and update stock" duration="15"/>
+    <testCase name="Payments Controller POST /payments/approve-order/:orderId should reject approval for non-existent order" duration="10"/>
+    <testCase name="Payments Controller GET /payments/user-orders should return user orders with pagination" duration="7"/>
+    <testCase name="Payments Controller GET /payments/user-orders should validate pagination parameters" duration="31"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\auth.controller.test.js">
+    <testCase name="Auth Controller POST /auth/register should register user successfully with valid data" duration="76"/>
+    <testCase name="Auth Controller POST /auth/register should reject weak password" duration="9"/>
+    <testCase name="Auth Controller POST /auth/register should reject duplicate email" duration="11">
+      <failure message="Error: expect(received).toContain(expected) // indexOf"><![CDATA[Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 200
+Received array: [400, 409]
+    at Object.toContain (C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\auth.controller.test.js:118:26)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)]]></failure>
+    </testCase>
+    <testCase name="Auth Controller POST /auth/login should login successfully with valid credentials" duration="305"/>
+    <testCase name="Auth Controller POST /auth/login should reject invalid credentials" duration="5"/>
+    <testCase name="Auth Controller POST /auth/forgot-password should process reset request for existing user" duration="43"/>
+    <testCase name="Auth Controller POST /auth/forgot-password should handle non-existent email gracefully" duration="5"/>
+    <testCase name="Auth Controller POST /auth/validate-password should validate strong password" duration="18"/>
+    <testCase name="Auth Controller POST /auth/validate-password should identify weak password" duration="6"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\biometricController.test.js">
+    <testCase name="Biometric Controller POST /biometric/setup-pin should setup PIN successfully" duration="84"/>
+    <testCase name="Biometric Controller POST /biometric/setup-pin should reject invalid PIN format" duration="10"/>
+    <testCase name="Biometric Controller POST /biometric/verify-pin should verify valid PIN" duration="33"/>
+    <testCase name="Biometric Controller POST /biometric/verify-pin should reject invalid PIN" duration="11"/>
+    <testCase name="Biometric Controller POST /biometric/request-pin-reset should send reset code for locked account" duration="41"/>
+    <testCase name="Biometric Controller POST /biometric/request-pin-reset should reject reset for non-locked account" duration="11"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\locationRoutes.test.js">
+    <testCase name="Location Routes POST /api/location/ubicacion should update user location successfully" duration="60"/>
+    <testCase name="Location Routes POST /api/location/ubicacion should handle location update errors" duration="6"/>
+    <testCase name="Location Routes GET /api/location/mi-ubicacion should get current user location" duration="4"/>
+    <testCase name="Location Routes GET /api/location/mi-ubicacion should handle no location found" duration="6"/>
+    <testCase name="Location Routes GET /api/location/cercanos should get nearby users with filters" duration="13"/>
+    <testCase name="Location Routes GET /api/location/estadisticas-ubicacion should get location statistics" duration="6"/>
+    <testCase name="Location Routes DELETE /api/location/ubicacion should delete user location" duration="7"/>
+    <testCase name="Location Routes DELETE /api/location/ubicacion should handle delete location errors" duration="6"/>
+    <testCase name="Location Routes Route Configuration should have all location routes defined" duration="1"/>
+    <testCase name="Location Routes Route Configuration should not have duplicate middleware" duration="1"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\locationController.test.js">
+    <testCase name="Location Controller POST /location/update should update location with valid coordinates" duration="47"/>
+    <testCase name="Location Controller POST /location/update should reject invalid coordinates" duration="5"/>
+    <testCase name="Location Controller GET /location/my-location should return user location when available" duration="41"/>
+    <testCase name="Location Controller GET /location/my-location should return 404 when no location set" duration="11"/>
+    <testCase name="Location Controller GET /location/nearby-users should return nearby users for admin" duration="13"/>
+    <testCase name="Location Controller GET /location/nearby-users should reject non-admin users" duration="10"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\excelReportRoutes.test.js">
+    <testCase name="ExcelReportService generateInventoryReport should generate inventory report with correct structure" duration="24"/>
+    <testCase name="ExcelReportService generateInventoryReport should handle database errors" duration="21"/>
+    <testCase name="ExcelReportService generateMovementsReport should generate movements report with date range" duration="4"/>
+    <testCase name="ExcelReportService generateTopProductsReport should generate top products report with default parameters" duration="4"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\preferencesController.test.js">
+    <testCase name="Preferences Controller GET /preferences should return user preferences with defaults" duration="76"/>
+    <testCase name="Preferences Controller GET /preferences should return default preferences when user has none" duration="12"/>
+    <testCase name="Preferences Controller PUT /preferences should update user preferences successfully" duration="38"/>
+    <testCase name="Preferences Controller PUT /preferences should reject invalid preference values" duration="9"/>
+    <testCase name="Preferences Controller PATCH /preferences/specific should update specific preference successfully" duration="28"/>
+    <testCase name="Preferences Controller PATCH /preferences/specific should update nested preference with dot notation" duration="19"/>
+    <testCase name="Preferences Controller DELETE /preferences/reset should reset preferences to default values" duration="11"/>
+    <testCase name="Preferences Controller GET /preferences/export should export user preferences as JSON" duration="10"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\inventoryController.test.js">
+    <testCase name="Inventory Controller POST /inventory/products should create product with valid data" duration="25"/>
+    <testCase name="Inventory Controller POST /inventory/products should reject product with duplicate code" duration="9"/>
+    <testCase name="Inventory Controller POST /inventory/products should validate required fields" duration="24"/>
+    <testCase name="Inventory Controller POST /inventory/entries should register entry with valid data" duration="8"/>
+    <testCase name="Inventory Controller POST /inventory/entries should reject entry for inactive product" duration="7"/>
+    <testCase name="Inventory Controller POST /inventory/exits should register exit with sufficient stock" duration="105"/>
+    <testCase name="Inventory Controller POST /inventory/exits should reject exit with insufficient stock" duration="5"/>
+    <testCase name="Inventory Controller PUT /inventory/products/:id should update product with valid data" duration="9"/>
+    <testCase name="Inventory Controller PUT /inventory/products/:id should reject update for non-existent product" duration="10"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\middlewares\authMiddleware.test.js">
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/login" duration="4"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/register" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/forgot-password" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/reset-password" duration="0"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/pagos/productos" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/google" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/google/callback" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/biometric/request-pin-reset" duration="0"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/biometric/verify-reset-code" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/biometric/check-reset-status" duration="1"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/biometric/verify-code-only" duration="0"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/biometric/reset-pin-final" duration="0"/>
+    <testCase name="Auth Middleware Rutas públicas should skip authentication for /api/auth/admin-reset-password" duration="0"/>
+    <testCase name="Auth Middleware Rutas públicas should log middleware start for public routes" duration="1"/>
+    <testCase name="Auth Middleware Validación de token should return 401 if no authorization header" duration="1"/>
+    <testCase name="Auth Middleware Validación de token should return 401 if authorization header does not start with Bearer" duration="1"/>
+    <testCase name="Auth Middleware Validación de token should return 401 for empty Bearer token" duration="0"/>
+    <testCase name="Auth Middleware Validación de token should log header presence correctly" duration="11"/>
+    <testCase name="Auth Middleware Validación de token should log missing header" duration="4"/>
+    <testCase name="Auth Middleware Verificación exitosa de token should verify token and set req.user correctly" duration="1"/>
+    <testCase name="Auth Middleware Verificación exitosa de token should convert string userId to integer" duration="3"/>
+    <testCase name="Auth Middleware Verificación exitosa de token should handle token without nombre field" duration="3"/>
+    <testCase name="Auth Middleware Manejo de errores de JWT should return 401 for expired token" duration="1"/>
+    <testCase name="Auth Middleware Manejo de errores de JWT should return 401 for invalid token" duration="1"/>
+    <testCase name="Auth Middleware Manejo de errores de JWT should return 401 for generic JWT error" duration="1"/>
+    <testCase name="Auth Middleware Diferentes roles de usuario should authenticate user with admin role" duration="1"/>
+    <testCase name="Auth Middleware Diferentes roles de usuario should authenticate user with editor role" duration="0"/>
+    <testCase name="Auth Middleware Diferentes roles de usuario should authenticate user with lector role" duration="1"/>
+    <testCase name="Auth Middleware Casos extremos should handle userId as 0" duration="0"/>
+    <testCase name="Auth Middleware Casos extremos should handle mixed case Bearer" duration="1"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\supplierRoutes.test.js">
+    <testCase name="Supplier Routes GET /api/suppliers should get all suppliers successfully" duration="53"/>
+    <testCase name="Supplier Routes GET /api/suppliers should handle empty suppliers list" duration="9"/>
+    <testCase name="Supplier Routes GET /api/suppliers should handle server errors in getSuppliers" duration="9"/>
+    <testCase name="Supplier Routes POST /api/suppliers should create a new supplier successfully" duration="20"/>
+    <testCase name="Supplier Routes POST /api/suppliers should handle validation errors in createSupplier" duration="6"/>
+    <testCase name="Supplier Routes POST /api/suppliers should handle duplicate supplier creation" duration="11"/>
+    <testCase name="Supplier Routes PUT /api/suppliers/:id should update supplier successfully" duration="12"/>
+    <testCase name="Supplier Routes PUT /api/suppliers/:id should handle supplier not found in update" duration="6"/>
+    <testCase name="Supplier Routes PUT /api/suppliers/:id should handle invalid ID parameter" duration="5"/>
+    <testCase name="Supplier Routes PUT /api/suppliers/:id should handle partial updates" duration="7"/>
+    <testCase name="Supplier Routes Route Existence should have all supplier routes defined" duration="11"/>
+    <testCase name="Supplier Routes Request Validation should accept valid supplier data formats" duration="13"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\middlewares\adminMiddleware.test.js">
+    <testCase name="Admin Middleware Validación de autenticación should return 401 if user is not authenticated" duration="7"/>
+    <testCase name="Admin Middleware Validación de autenticación should return 401 if userId is missing" duration="2"/>
+    <testCase name="Admin Middleware Validación de usuario en base de datos should return 401 if user is not found in database" duration="2"/>
+    <testCase name="Admin Middleware Validación de rol de administrador should return 403 if user is not admin" duration="1"/>
+    <testCase name="Admin Middleware Validación de rol de administrador should return 403 if user has editor role" duration="3"/>
+    <testCase name="Admin Middleware Validación de rol de administrador should call next() if user is admin" duration="1"/>
+    <testCase name="Admin Middleware Manejo de errores should return 500 if database query fails" duration="6"/>
+    <testCase name="Admin Middleware Manejo de errores should handle unexpected errors gracefully" duration="1"/>
+    <testCase name="Admin Middleware Casos extremos should handle userId as string" duration="0"/>
+    <testCase name="Admin Middleware Casos extremos should handle empty rol value" duration="1"/>
+    <testCase name="Admin Middleware Casos extremos should handle null rol value" duration="2"/>
+    <testCase name="Admin Middleware Casos extremos should handle undefined rol value" duration="1"/>
+    <testCase name="Admin Middleware Integración con flujo de autenticación should work correctly after authMiddleware" duration="1"/>
+    <testCase name="Admin Middleware Integración con flujo de autenticación should validate even if req.user has rol property" duration="1"/>
+    <testCase name="Admin Middleware Logging y debugging should log successful admin authorization" duration="1"/>
+    <testCase name="Admin Middleware Logging y debugging should log error details on failure" duration="0"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\SuppliersController.test.js">
+    <testCase name="Suppliers Controller GET /suppliers should return all active suppliers" duration="40"/>
+    <testCase name="Suppliers Controller POST /suppliers should create supplier with valid data" duration="22"/>
+    <testCase name="Suppliers Controller POST /suppliers should handle validation errors" duration="9"/>
+    <testCase name="Suppliers Controller PUT /suppliers/:id should update supplier successfully" duration="5"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\utils\validators.test.js">
+    <testCase name="validators should pass basic test" duration="13"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\middlewares\notificationMiddleware.test.js">
+    <testCase name="Notification Middleware onUserDataModified should create notification when admin modifies user data" duration="4"/>
+    <testCase name="Notification Middleware onUserDataModified should include timestamp in notification data" duration="2"/>
+    <testCase name="Notification Middleware onUserDataModified should handle notification service errors gracefully" duration="2"/>
+    <testCase name="Notification Middleware onUserDataModified should work with empty changes object" duration="8"/>
+    <testCase name="Notification Middleware onUserDataModified should work with multiple changes" duration="1"/>
+    <testCase name="Notification Middleware onUserDataModified should handle different admin IDs" duration="1"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should notify user about suspicious activity" duration="2"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should notify admins about suspicious activity" duration="1"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should call both user and admin notifications" duration="1"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should handle errors in user notification" duration="1"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should handle errors in admin notification" duration="1"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should work with different activity types" duration="0"/>
+    <testCase name="Notification Middleware onSuspiciousActivity should pass complete activity details to notifications" duration="2"/>
+    <testCase name="Notification Middleware onSystemUpdate should broadcast system update to all users" duration="1"/>
+    <testCase name="Notification Middleware onSystemUpdate should handle broadcast errors gracefully" duration="1"/>
+    <testCase name="Notification Middleware onSystemUpdate should work with minimal update details" duration="1"/>
+    <testCase name="Notification Middleware onSystemUpdate should work with detailed update information" duration="1"/>
+    <testCase name="Notification Middleware onSystemUpdate should use correct notification type and priority" duration="2"/>
+    <testCase name="Notification Middleware onSystemUpdate should handle empty message" duration="1"/>
+    <testCase name="Notification Middleware onSystemUpdate should handle network errors" duration="0"/>
+    <testCase name="Notification Middleware Integration scenarios should handle multiple notification types in sequence" duration="1"/>
+    <testCase name="Notification Middleware Integration scenarios should maintain independence between notification types" duration="0"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\preferencesRoutes.test.js">
+    <testCase name="Preferences Routes Middleware Authentication should apply auth middleware to all routes" duration="38"/>
+    <testCase name="Preferences Routes GET /api/preferences/ should get user preferences successfully" duration="16"/>
+    <testCase name="Preferences Routes GET /api/preferences/ should handle no preferences found" duration="10"/>
+    <testCase name="Preferences Routes PUT /api/preferences/ should update user preferences successfully" duration="17"/>
+    <testCase name="Preferences Routes PUT /api/preferences/ should handle validation errors in update" duration="9"/>
+    <testCase name="Preferences Routes POST /api/preferences/reset should reset user preferences successfully" duration="17"/>
+    <testCase name="Preferences Routes PUT /api/preferences/specific should update specific preference successfully" duration="7"/>
+    <testCase name="Preferences Routes PUT /api/preferences/specific should handle invalid preference key" duration="13"/>
+    <testCase name="Preferences Routes GET /api/preferences/export should export user preferences successfully" duration="10"/>
+    <testCase name="Preferences Routes GET /api/preferences/export should support format query parameter" duration="33"/>
+    <testCase name="Preferences Routes Route Existence should have all preferences routes defined" duration="4"/>
+    <testCase name="Preferences Routes Error Handling should handle server errors consistently" duration="7"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\utils\helpers.test.js">
+    <testCase name="helpers should pass basic test" duration="2"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\controllers\excelReportController.test.js">
+    <testCase name="Excel Report Controller GET /reports/inventory should generate inventory report successfully" duration="30"/>
+    <testCase name="Excel Report Controller GET /reports/inventory should validate query parameters" duration="15"/>
+    <testCase name="Excel Report Controller GET /reports/movements should generate movements report with valid dates" duration="6"/>
+    <testCase name="Excel Report Controller GET /reports/movements should reject invalid date format" duration="4"/>
+    <testCase name="Excel Report Controller GET /reports/movements should reject date range over 2 years" duration="5"/>
+    <testCase name="Excel Report Controller GET /reports/top-products should generate top products report with valid parameters" duration="5"/>
+    <testCase name="Excel Report Controller GET /reports/top-products should validate numeric parameters" duration="4"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\inventoryRoutes.test.js">
+    <testCase name="Inventory Routes - Stock Alerts GET /api/inventory/stock-alerts should get stock alerts successfully" duration="48"/>
+    <testCase name="Inventory Routes - Stock Alerts GET /api/inventory/stock-alerts should handle no stock alerts found" duration="7"/>
+    <testCase name="Inventory Routes - Stock Alerts GET /api/inventory/stock-alerts should handle server errors" duration="6"/>
+    <testCase name="Inventory Routes - Stock Alerts GET /api/inventory/stock-alerts should support query parameters for filtering" duration="6"/>
+    <testCase name="Inventory Routes - Stock Alerts Route Existence should have all inventory routes defined" duration="2"/>
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\GeoRoutes.test.js">
+  </file>
+  <file path="C:\Users\fredw\Desktop\mvc-usuarios-react\backend\__tests__\routes\authRoutes.test.js">
+  </file>
+</testExecutions>

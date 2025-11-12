@@ -43,6 +43,13 @@ const Login = () => {
   
   const navigate = useNavigate();
 
+  // ✅ Limpiar mensajes de error cuando el usuario escribe
+  useEffect(() => {
+    if (error && (form.email || form.password || otp)) {
+      setError(null);
+    }
+  }, [form.email, form.password, otp]);
+
   // Verificar estado biométrico después del login
   const checkBiometricStatus = async (token) => {
     try {
@@ -180,64 +187,149 @@ const Login = () => {
     navigate('/Usuarios');
   };
 
-  // Login mejorado con manejo de errores de conexión
+  // ✅ LOGIN MEJORADO CON MANEJO DE ERRORES
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
     setIsLoading(true);
     
     try {
-      const res = await axios.post(`${API_URL}/auth/login`, form);
+      console.log('🔐 Iniciando login con:', { email: form.email });
+      
+      const res = await axios.post(`${API_URL}/auth/login`, {
+        email: form.email.trim(),
+        password: form.password
+      });
+      
+      console.log('✅ Respuesta del servidor:', res.data);
       setIsLoading(false);
       
-      if (res.data.require2fa) {
+      if (res.data.success && res.data.require2fa) {
+        // Guardar userId y modo de autenticación
         setUserId(res.data.userId);
-        setAuthMode(res.data.mode);
+        setAuthMode(res.data.mode || 'online');
         setStep(2);
         
         if (res.data.mode === 'offline') {
           setOfflineCode(res.data.offlineCode || '');
-          setSuccess(res.data.message);
+          setSuccess(res.data.message || '🔴 Modo offline - Usa el código mostrado');
+          
+          if (res.data.offlineCode) {
+            console.log('🔑 Código offline:', res.data.offlineCode);
+          }
         } else {
-          setSuccess('Código de verificación enviado a tu correo electrónico');
+          setSuccess('✅ Código de verificación enviado a tu correo electrónico');
         }
+      } else if (res.data.success && res.data.token) {
+        // Login directo sin 2FA (no debería ocurrir normalmente)
+        localStorage.setItem('token', res.data.token);
+        navigate('/Usuarios');
+      } else {
+        setError(res.data.message || 'Error desconocido en el login');
       }
+      
     } catch (err) {
       setIsLoading(false);
+      console.error('❌ Error en login:', err);
       
       // Manejar errores de conexión
-      if (err.code === 'NETWORK_ERROR' || !err.response) {
+      if (err.code === 'ERR_NETWORK' || !err.response) {
         setError('❌ Sin conexión a internet. El servidor no está disponible.');
+      } else if (err.response?.status === 401) {
+        setError('❌ Credenciales incorrectas. Verifica tu email y contraseña.');
+      } else if (err.response?.status === 409) {
+        // Sesión activa detectada
+        setError(err.response?.data?.message || '⚠️ Ya existe una sesión activa.');
       } else {
-        setError(err.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.');
+        setError(err.response?.data?.message || 'Error de autenticación. Intenta nuevamente.');
       }
     }
   };
 
-  // Verificación OTP mejorada
+  // ✅ VERIFICACIÓN 2FA TOTALMENTE CORREGIDA
   const handle2FA = async (e) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
+    
+    // ✅ VALIDACIONES ANTES DE ENVIAR
+    if (!userId) {
+      setError('❌ Error: No se encontró el ID de usuario. Inicia sesión nuevamente.');
+      setStep(1);
+      return;
+    }
+    
+    if (!otp || otp.trim().length === 0) {
+      setError('❌ Por favor ingresa el código de verificación');
+      return;
+    }
+    
+    // ✅ Validar formato de OTP (debe ser 6 dígitos o 4 dígitos para offline)
+    const otpTrimmed = otp.trim();
+    if (!/^\d{4,6}$/.test(otpTrimmed)) {
+      setError('❌ El código debe tener 4 o 6 dígitos numéricos');
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      const res = await axios.post(`${API_URL}/auth/2fa/verify`, { userId, otp });
+      console.log('🔐 Verificando código 2FA:', {
+        userId: userId,
+        otpLength: otpTrimmed.length,
+        mode: authMode
+      });
+      
+      // ✅ ENVIAR DATOS CORRECTOS
+      const res = await axios.post(`${API_URL}/auth/2fa/verify`, {
+        userId: parseInt(userId), // ✅ Asegurar que sea número
+        otp: otpTrimmed // ✅ Sin espacios ni caracteres extras
+      });
+      
+      console.log('✅ Verificación exitosa:', res.data);
       setIsLoading(false);
       
-      localStorage.setItem('token', res.data.token);
-      setSavedToken(res.data.token);
-      setSuccess(`✅ ${res.data.message}`);
-      
-      // Verificar requisitos biométricos
-      await checkBiometricStatus(res.data.token);
+      if (res.data.success && res.data.token) {
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        setSavedToken(res.data.token);
+        setSuccess(`✅ ${res.data.message || 'Autenticación exitosa'}`);
+        
+        // Verificar requisitos biométricos
+        setTimeout(() => {
+          checkBiometricStatus(res.data.token);
+        }, 500);
+      } else {
+        setError(res.data.message || '❌ Error en la verificación');
+      }
       
     } catch (err) {
       setIsLoading(false);
+      console.error('❌ Error en verificación 2FA:', err);
       
-      if (err.code === 'NETWORK_ERROR' || !err.response) {
+      // ✅ MANEJO ESPECÍFICO DE ERRORES
+      if (err.code === 'ERR_NETWORK' || !err.response) {
         setError('❌ Error de conexión. Verifica tu internet e intenta nuevamente.');
+      } else if (err.response?.status === 400) {
+        // Error de validación
+        const errorData = err.response?.data;
+        if (errorData?.errors && Array.isArray(errorData.errors)) {
+          setError(`❌ ${errorData.errors.join(', ')}`);
+        } else {
+          setError(errorData?.message || '❌ Datos inválidos. Verifica el código ingresado.');
+        }
+      } else if (err.response?.status === 401) {
+        // Código incorrecto o expirado
+        setError(err.response?.data?.message || '❌ Código incorrecto o expirado. Intenta nuevamente.');
+      } else if (err.response?.status === 404) {
+        setError('❌ Usuario no encontrado. Inicia sesión nuevamente.');
+        setTimeout(() => {
+          setStep(1);
+          setOtp('');
+        }, 2000);
       } else {
-        setError(err.response?.data?.message || 'Código incorrecto. Intenta nuevamente.');
+        setError(err.response?.data?.message || '❌ Error verificando el código. Intenta nuevamente.');
       }
     }
   };
@@ -252,6 +344,8 @@ const Login = () => {
 
   const handleBackToLogin = () => {
     setStep(1);
+    setOtp('');
+    setUserId(null);
     setError(null);
     setSuccess(null);
     setAuthMode('online');
@@ -377,6 +471,7 @@ const Login = () => {
                       borderRadius: 2,
                     }
                   }}
+                  disabled={isLoading}
                 />
                 <TextField
                   label="Contraseña"
@@ -398,6 +493,7 @@ const Login = () => {
                           aria-label="toggle password visibility"
                           onClick={handleClickShowPassword}
                           edge="end"
+                          disabled={isLoading}
                         >
                           {showPassword ? <VisibilityOff /> : <Visibility />}
                         </IconButton>
@@ -409,6 +505,7 @@ const Login = () => {
                       borderRadius: 2,
                     }
                   }}
+                  disabled={isLoading}
                 />
                 <Button 
                   type="submit" 
@@ -426,7 +523,7 @@ const Login = () => {
                   }}
                   disabled={isLoading}
                 >
-                  {isLoading ? <CircularProgress size={24} /> : 'Ingresar'}
+                  {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Ingresar'}
                 </Button>
                 
                 <Divider sx={{ my: 2 }}>
@@ -451,6 +548,7 @@ const Login = () => {
                     }
                   }}
                   onClick={handleGoogleLogin}
+                  disabled={isLoading}
                 >
                   Continuar con Google
                 </Button>
@@ -526,7 +624,19 @@ const Login = () => {
                   margin="normal"
                   required
                   value={otp}
-                  onChange={e => setOtp(e.target.value)}
+                  onChange={e => {
+                    // ✅ Solo permitir números
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value.length <= 6) {
+                      setOtp(value);
+                    }
+                  }}
+                  placeholder={authMode === 'offline' ? '4 dígitos' : '6 dígitos'}
+                  inputProps={{
+                    maxLength: authMode === 'offline' ? 4 : 6,
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*'
+                  }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -539,6 +649,8 @@ const Login = () => {
                       borderRadius: 2,
                     }
                   }}
+                  disabled={isLoading}
+                  autoFocus
                 />
                 
                 <Button 
@@ -554,9 +666,9 @@ const Login = () => {
                     fontSize: '1rem',
                     fontWeight: 600
                   }}
-                  disabled={isLoading}
+                  disabled={isLoading || otp.trim().length < 4}
                 >
-                  {isLoading ? <CircularProgress size={24} /> : 'Verificar Código'}
+                  {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Verificar Código'}
                 </Button>
                 
                 <Button
@@ -567,6 +679,7 @@ const Login = () => {
                     borderRadius: 2,
                   }}
                   onClick={handleBackToLogin}
+                  disabled={isLoading}
                 >
                   Volver al inicio de sesión
                 </Button>

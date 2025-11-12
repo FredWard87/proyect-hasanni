@@ -12,6 +12,9 @@ router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 router.get('/me', authMiddleware, authController.me);
 
+// ✅ NUEVA RUTA PARA LIMPIAR ACCESO NO AUTORIZADO
+router.post('/clean-unauthorized-access', authController.cleanUnauthorizedAccess);
+
 // ✅ NUEVAS RUTAS DE CONTROL DE SESIONES
 router.post('/logout', authMiddleware, authController.logout);
 router.get('/session/check', authMiddleware, authController.checkSession);
@@ -32,25 +35,21 @@ router.get('/google/callback',
       if (err) {
         console.error('❌ Error en autenticación Google:', err);
         const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-        // Redirigir directamente al login con mensaje de error
         return res.redirect(`${frontendURL}/?authError=Error de autenticación`);
       }
       
       if (!user) {
         console.log('🔴 Autenticación cancelada o fallida');
         const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-        // Redirigir directamente al login
         return res.redirect(`${frontendURL}/?authError=Autenticación cancelada`);
       }
       
-      // Si la autenticación fue exitosa
       req.user = user;
       next();
     })(req, res, next);
   },
   (req, res) => {
     try {
-      // Generar token JWT
       const token = jwt.sign(
         {
           userId: req.user.id,
@@ -65,7 +64,6 @@ router.get('/google/callback',
       const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
       console.log('✅ Autenticación Google exitosa');
       
-      // Redirigir al login con el token como parámetro
       res.redirect(`${frontendURL}/?token=${token}`);
       
     } catch (error) {

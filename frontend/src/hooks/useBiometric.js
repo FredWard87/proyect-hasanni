@@ -15,7 +15,7 @@ const useBiometric = () => {
             if (!token) return;
 
             const response = await fetch(
-                `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/biometric/status`,
+                `${process.env.REACT_APP_API_URL || 'https://eusebio-uninferable-pokingly.ngrok-free.dev/api'}/biometric/status`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`

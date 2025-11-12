@@ -11,7 +11,6 @@ const OTP_EXPIRATION_MINUTES = 5;
 const OFFLINE_CODE_EXPIRATION_MINUTES = 10;
 
 // ✅ ALMACÉN DE SESIONES ACTIVAS (en memoria - para producción usar Redis)
-const activeSessions = new Map();
 
 // ✅ LISTA DE CONTRASEÑAS COMUNES/VULNERABLES
 const COMMON_PASSWORDS = [
@@ -1569,6 +1568,7 @@ exports.login = async (req, res) => {
 };
 
 // ✅ VERIFICACIÓN OTP CON REGISTRO DE SESIÓN
+// ✅ VERIFICACIÓN OTP CORREGIDA - CON RETURNS APROPIADOS
 exports.verifyOtp = async (req, res) => {
   try {
     // Validar cuerpo de la solicitud
@@ -1597,8 +1597,10 @@ exports.verifyOtp = async (req, res) => {
       [userId]
     );
     
+    // ✅ VALIDACIÓN: Usuario no encontrado
     if (result.rows.length === 0) {
-      return res.status(200).json({ 
+      console.log('❌ Usuario no encontrado:', userId);
+      return res.status(404).json({ 
         success: false,
         message: 'Usuario no encontrado.' 
       });
@@ -1609,30 +1611,61 @@ exports.verifyOtp = async (req, res) => {
     let mode = 'online';
     const now = new Date();
     
-    // Verificación rápida de OTP online
-    if (usuario.otp === otp && new Date(usuario.otp_expires) > now) {
+    console.log('🔍 Verificando OTP para usuario:', usuario.email);
+    console.log('🔢 OTP recibido:', otp);
+    console.log('🔢 OTP esperado (online):', usuario.otp);
+    console.log('⏰ OTP expira:', usuario.otp_expires);
+    
+    // ✅ Verificación de OTP online
+    if (usuario.otp && usuario.otp === otp && new Date(usuario.otp_expires) > now) {
       isValid = true;
       mode = 'online';
+      console.log('✅ OTP online válido');
     } 
-    // Verificación rápida de código offline
+    // ✅ Verificación de código offline
     else if (usuario.offline_code_hash && new Date(usuario.offline_code_expires) > now) {
+      console.log('🔍 Verificando código offline...');
       isValid = await bcrypt.compare(otp, usuario.offline_code_hash);
-      mode = 'offline';
+      if (isValid) {
+        mode = 'offline';
+        console.log('✅ Código offline válido');
+      }
     }
     
+    // ✅ CRÍTICO: Si el OTP/código es inválido, RETORNAR INMEDIATAMENTE
     if (!isValid) {
+      console.log('❌ Código incorrecto o expirado');
+      console.log('📊 Detalles de validación:', {
+        otpProporcionado: otp,
+        otpEsperado: usuario.otp,
+        otpExpiraEn: usuario.otp_expires,
+        tieneCodigoOffline: !!usuario.offline_code_hash,
+        codigoOfflineExpiraEn: usuario.offline_code_expires
+      });
+      
+      // Registrar intento fallido
       await notificationMiddleware.onSuspiciousActivity(usuario.id, {
         tipo: 'otp_invalido',
         ip: req.ip,
         timestamp: new Date().toISOString(),
-        modo: mode
+        modo: mode,
+        intentoOtp: otp.substring(0, 2) + '****' // Log parcial por seguridad
       });
       
-      return res.status(200).json({ 
+      // ✅ RETURN AQUÍ para evitar continuar con el flujo
+      return res.status(401).json({ 
         success: false,
-        message: 'Código incorrecto o expirado.' 
+        message: 'Código incorrecto o expirado.',
+        data: {
+          hint: usuario.otp_expires ? 
+            (new Date(usuario.otp_expires) < now ? 'El código ha expirado' : 'Código incorrecto') :
+            'No hay código activo'
+        }
       });
     }
+    
+    // ✅ SOLO LLEGA AQUÍ SI EL CÓDIGO ES VÁLIDO
+    console.log('✅ Código verificado exitosamente');
     
     // Limpiar códigos usados
     await query(
@@ -1642,6 +1675,7 @@ exports.verifyOtp = async (req, res) => {
     
     const tokenExpiresIn = mode === 'offline' ? '2h' : '1d';
     
+    // Generar token JWT
     const token = jwt.sign(
       { 
         userId: usuario.id, 
@@ -1661,6 +1695,7 @@ exports.verifyOtp = async (req, res) => {
     console.log(`🔐 Modo: ${mode}`);
     console.log(`⏰ Expira en: ${tokenExpiresIn}`);
 
+    // Registrar verificación exitosa
     await notificationMiddleware.onSuspiciousActivity(usuario.id, {
       tipo: 'verificacion_exitosa',
       timestamp: new Date().toISOString(),
@@ -1670,7 +1705,8 @@ exports.verifyOtp = async (req, res) => {
     const totalTime = Date.now() - startTime;
     console.log(`✅ Verificación OTP ${mode} completada en: ${totalTime}ms`);
     
-    res.json({ 
+    // ✅ RETURN de éxito
+    return res.json({ 
       success: true,
       token, 
       user: { 
@@ -1686,9 +1722,73 @@ exports.verifyOtp = async (req, res) => {
     
   } catch (err) {
     console.error('❌ Error verificando OTP:', err);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       success: false,
-      message: 'Error verificando OTP.' 
+      message: 'Error verificando código. Intenta nuevamente.' 
+    });
+  }
+};
+
+// ✅ ALMACÉN GLOBAL DE SESIONES ACTIVAS (compartido entre todas las instancias)
+if (!global.activeSessions) {
+  global.activeSessions = new Map();
+}
+const activeSessions = global.activeSessions;
+
+// ✅ FUNCIÓN PARA INVALIDAR TODAS LAS SESIONES DE UN USUARIO
+function invalidateAllUserSessions(userId) {
+  console.log(`🚨 INVALIDANDO TODAS LAS SESIONES PARA USUARIO: ${userId}`);
+  
+  // Eliminar del almacén de sesiones activas
+  const removed = activeSessions.delete(userId);
+  
+  // También invalidar cualquier token pendiente en la base de datos
+  const query = require('../config/database').query;
+  
+  query(
+    'UPDATE usuarios SET otp = NULL, otp_expires = NULL, offline_code_hash = NULL, offline_code_expires = NULL WHERE id = $1',
+    [userId]
+  ).catch(err => {
+    console.error('Error limpiando tokens de usuario:', err);
+  });
+  
+  console.log(`✅ Sesiones invalidadas para usuario ${userId}: ${removed ? 'SÍ' : 'NO'}`);
+  return removed;
+}
+
+// ✅ FUNCIÓN PARA VERIFICAR Y LIMPIAR ACCESO NO AUTORIZADO
+exports.cleanUnauthorizedAccess = async (req, res) => {
+  try {
+    const { userId, email } = req.body;
+    
+    console.log('🚨 SOLICITUD DE LIMPIEZA DE ACCESO NO AUTORIZADO');
+    console.log(`👤 Usuario afectado: ${email || userId}`);
+    
+    if (userId) {
+      invalidateAllUserSessions(userId);
+    } else if (email) {
+      const usuario = await Usuario.obtenerPorEmail(email);
+      if (usuario) {
+        invalidateAllUserSessions(usuario.id);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Sesiones invalidadas correctamente',
+      data: {
+        userId,
+        email,
+        sessionsInvalidated: true,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error limpiando acceso no autorizado:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error limpiando sesiones'
     });
   }
 };
@@ -1958,15 +2058,27 @@ exports.verifyToken = async (req, res) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     
+    // ✅ VERIFICAR SI LA SESIÓN ESTÁ ACTIVA EN EL SISTEMA
+    const activeSession = checkActiveSession(decoded.userId);
+    if (!activeSession) {
+      console.log(`🚨 Token válido pero sesión no activa para usuario: ${decoded.userId}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Sesión inválida o cerrada'
+      });
+    }
+    
     // Actualizar actividad de sesión si existe
     updateSessionActivity(decoded.userId);
     
     const userResult = await query(
-      'SELECT id, nombre, email FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, email, rol FROM usuarios WHERE id = $1',
       [decoded.userId]
     );
 
     if (userResult.rows.length === 0) {
+      // Si el usuario no existe, invalidar sesión
+      invalidateAllUserSessions(decoded.userId);
       return res.status(401).json({
         success: false,
         message: 'Usuario no encontrado'
@@ -1976,13 +2088,38 @@ exports.verifyToken = async (req, res) => {
     res.json({
       success: true,
       user: userResult.rows[0],
-      authMode: decoded.authMode || 'online'
+      authMode: decoded.authMode || 'online',
+      sessionActive: true
     });
   } catch (error) {
-    res.status(401).json({
-      success: false,
-      message: 'Token inválido o expirado'
-    });
+    console.error('❌ Error verificando token:', error.message);
+    
+    // Si el token es inválido, intentar extraer userId para invalidar sesión
+    try {
+      const decoded = jwt.decode(token);
+      if (decoded && decoded.userId) {
+        invalidateAllUserSessions(decoded.userId);
+      }
+    } catch (e) {
+      // No hacer nada si no se puede decodificar
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token expirado' 
+      });
+    } else if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token inválido' 
+      });
+    } else {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Error de autenticación' 
+      });
+    }
   }
 };
 
