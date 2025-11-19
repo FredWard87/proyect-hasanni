@@ -2,7 +2,6 @@ const Usuario = require('../models/Usuario');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { Resend } = require('resend');
 const dns = require('dns').promises;
 const notificationMiddleware = require('../middlewares/notificationMiddleware');
 
@@ -514,7 +513,15 @@ function generatePasswordSuggestions(password, errors) {
   return suggestions;
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const SibApiV3Sdk = require('@sendinblue/client');
+
+// Configurar Brevo
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+brevoApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
+
 
 async function quickInternetCheck() {
   return new Promise((resolve) => {
@@ -600,19 +607,17 @@ async function sendEmail(to, subject, html) {
       return false;
     }
 
-    const { data, error } = await resend.emails.send({
-      from: 'Hasanni <onboarding@resend.dev>',
-      to: [to],
-      subject: subject,
-      html: html,
-    });
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html;
+    sendSmtpEmail.sender = { 
+      name: "Sistema Hasanni", 
+      email: "audit3674@gmail.com"
+    };
+    sendSmtpEmail.to = [{ email: to }];
 
-    if (error) {
-      console.error('❌ Error enviando email:', error);
-      return false;
-    }
-
-    console.log(`✅ Email enviado a: ${to} - ID: ${data.id}`);
+    const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email enviado a: ${to} - ID: ${result.messageId}`);
     return true;
   } catch (error) {
     console.error('❌ Error enviando email:', error);

@@ -2,7 +2,6 @@
 // controllers/paymentController.js
 const { query } = require('../config/database');
 const fetch = require('node-fetch');
-const { Resend } = require('resend');
 
 // Configuración de PayPal
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
@@ -142,8 +141,14 @@ const sendLowStockAlert = async (lowStockProducts) => {
 
     // Enviar email (usando el mismo sistema de email que tienes configurado)
     
-   const resend = new Resend(process.env.RESEND_API_KEY);
+const SibApiV3Sdk = require('@sendinblue/client');
 
+// Configurar Brevo
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+brevoApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: adminEmail,

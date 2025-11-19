@@ -1,28 +1,31 @@
 // services/emailService.js
-const { Resend } = require('resend');
+const SibApiV3Sdk = require('@sendinblue/client');
 
 class EmailService {
     constructor() {
-        this.resend = new Resend(process.env.RESEND_API_KEY);
-        this.fromEmail = 'Sistema <audit3674@gmail.com>'; 
+        this.apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+        this.apiInstance.setApiKey(
+            SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+            process.env.BREVO_API_KEY
+        );
+        this.fromEmail = 'audit3674@gmail.com';
+        this.fromName = 'Sistema Hasanni';
     }
 
     async sendEmail(to, subject, html) {
         try {
-            const { data, error } = await this.resend.emails.send({
-                from: this.fromEmail,
-                to: [to],
-                subject: subject,
-                html: html
-            });
+            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+            sendSmtpEmail.subject = subject;
+            sendSmtpEmail.htmlContent = html;
+            sendSmtpEmail.sender = { 
+                name: this.fromName, 
+                email: this.fromEmail 
+            };
+            sendSmtpEmail.to = [{ email: to }];
 
-            if (error) {
-                console.error('❌ Error enviando email:', error);
-                throw error;
-            }
-
-            console.log('✅ Email enviado exitosamente:', data.id);
-            return data;
+            const result = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+            console.log('✅ Email enviado exitosamente:', result.messageId);
+            return result;
         } catch (error) {
             console.error('❌ Error en sendEmail:', error);
             throw error;
@@ -171,6 +174,49 @@ class EmailService {
                             <strong>⚠️ Importante:</strong> Este enlace expirará en 1 hora por razones de seguridad.
                         </div>
                         <p>Si no solicitaste este cambio, puedes ignorar este correo.</p>
+                        <p><strong>El equipo de Hasanni</strong></p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        return await this.sendEmail(to, subject, html);
+    }
+
+    // Método para envío de OTP
+    async sendOTPEmail(to, otp, expiresInMinutes) {
+        const subject = 'Tu código de acceso (OTP) - Hasanni';
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                    .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; text-align: center; }
+                    .otp-code { font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #FF9800; background: #fff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+                    .warning { background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0; text-align: left; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🔐 Código de Acceso</h1>
+                    </div>
+                    <div class="content">
+                        <p>Tu código de acceso es:</p>
+                        <div class="otp-code">${otp}</div>
+                        <p>Este código expira en <strong>${expiresInMinutes} minutos</strong>.</p>
+                        <div class="warning">
+                            <strong>⚠️ Consejos de seguridad:</strong>
+                            <ul>
+                                <li>No compartas este código con nadie</li>
+                                <li>Solo ingrésalo en la aplicación oficial</li>
+                                <li>Si no solicitaste este acceso, cambia tu contraseña</li>
+                            </ul>
+                        </div>
                         <p><strong>El equipo de Hasanni</strong></p>
                     </div>
                 </div>

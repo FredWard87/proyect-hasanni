@@ -2,10 +2,15 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../config/database');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { Resend } = require('resend');
 // Configurar transporter de email
-const resend = new Resend(process.env.RESEND_API_KEY);
+const SibApiV3Sdk = require('@sendinblue/client');
 
+// Configurar Brevo
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+brevoApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 class BiometricController {
     
     // Crear/actualizar PIN
