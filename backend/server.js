@@ -38,27 +38,22 @@ const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 // === MIDDLEWARE ===
 
 // CORS - Permitir solicitudes del frontend
-// CORS - Permitir solicitudes del frontend
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:3000',
     'https://proyect-hasanni.onrender.com',
-    'https://fast-nails-obey.loca.lt',
-    'https://soft-rats-invent.loca.lt',
-    'https://gold-kids-sip.loca.lt',
-    'https://sixty-coats-relate.loca.lt',
-    'https://miapireact.loca.lt' // ← Agrega también el dominio de localtunnel
+    'https://proyect-hasanni-backedn.onrender.com'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
-    'ngrok-skip-browser-warning' // ← AGREGAR ESTA LÍNEA
+    'ngrok-skip-browser-warning' 
   ],
   credentials: true
 }));
 
-// Bypass ngrok warning page - MANTÉN ESTE MIDDLEWARE
+// Bypass ngrok warning page
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
   next();
@@ -67,7 +62,11 @@ app.use((req, res, next) => {
 // Para parsing de JSON y datos de formularios
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rutas de autenticación (ambas versiones para compatibilidad)
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes); // ← AGREGADO: Compatibilidad con frontend
+
 app.use(passport.initialize());
 
 // Logging de requests
@@ -92,9 +91,9 @@ app.get('/', (req, res) => {
       estadisticas: '/api/usuarios/estadisticas',
       documentation: '/api-docs',
       notifications: '/api/notifications',
-      // NUEVOS ENDPOINTS DE INVENTARIO
       inventario: '/api/inventario',
-      reportes: '/api/reportes'
+      reportes: '/api/reportes',
+      auth: '/api/auth (también disponible en /auth)'
     }
   });
 });
@@ -114,7 +113,7 @@ app.use('/api/location', authMiddleware, locationRoutes);
 app.use('/api/preferencias', preferencesRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 
-// ✅ RUTAS DE INVENTARIO - ELIMINADA LA LÍNEA DE supplierRoutes
+// Rutas de inventario
 app.use('/api/inventario', authMiddleware, inventoryRoutes);
 app.use('/api/reportes', authMiddleware, reportRoutes);
 app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
@@ -188,6 +187,7 @@ const iniciarServidor = async () => {
       console.log(`🌐 URL: http://localhost:${PORT}`);
       console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
+      console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth (también /auth)`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
       console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
       console.log(`📦 Inventario API: http://localhost:${PORT}/api/inventario`);
