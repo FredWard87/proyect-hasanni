@@ -2,7 +2,7 @@ const Usuario = require('../models/Usuario');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const dns = require('dns').promises;
 const notificationMiddleware = require('../middlewares/notificationMiddleware');
 
@@ -514,13 +514,7 @@ function generatePasswordSuggestions(password, errors) {
   return suggestions;
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function quickInternetCheck() {
   return new Promise((resolve) => {
@@ -606,13 +600,19 @@ async function sendEmail(to, subject, html) {
       return false;
     }
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      html,
+    const { data, error } = await resend.emails.send({
+      from: 'Hasanni <onboarding@resend.dev>',
+      to: [to],
+      subject: subject,
+      html: html,
     });
-    console.log(`✅ Email enviado a: ${to}`);
+
+    if (error) {
+      console.error('❌ Error enviando email:', error);
+      return false;
+    }
+
+    console.log(`✅ Email enviado a: ${to} - ID: ${data.id}`);
     return true;
   } catch (error) {
     console.error('❌ Error enviando email:', error);
