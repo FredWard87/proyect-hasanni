@@ -4,7 +4,7 @@ const { Resend } = require('resend');
 class EmailService {
     constructor() {
         this.resend = new Resend(process.env.RESEND_API_KEY);
-        this.fromEmail = 'Hasanni <onboarding@resend.dev>'; 
+        this.fromEmail = 'Sistema <audit3674@gmail.com>'; 
     }
 
     async sendEmail(to, subject, html) {
