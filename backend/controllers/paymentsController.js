@@ -2,8 +2,7 @@
 // controllers/paymentController.js
 const { query } = require('../config/database');
 const fetch = require('node-fetch');
-const nodemailer = require('nodemailer');
-
+const { Resend } = require('resend');
 
 // Configuración de PayPal
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
@@ -143,13 +142,7 @@ const sendLowStockAlert = async (lowStockProducts) => {
 
     // Enviar email (usando el mismo sistema de email que tienes configurado)
     
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
+   const resend = new Resend(process.env.RESEND_API_KEY);
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
