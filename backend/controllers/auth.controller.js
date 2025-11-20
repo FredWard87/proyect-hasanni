@@ -611,8 +611,8 @@ async function sendEmail(to, subject, html) {
     sendSmtpEmail.subject = subject;
     sendSmtpEmail.htmlContent = html;
     sendSmtpEmail.sender = { 
-      name: "Sistema Hasanni", 
-      email: "audit3674@gmail.com"
+      name: "Productos", 
+      email: "r41474721@gmail.com"
     };
     sendSmtpEmail.to = [{ email: to }];
 
