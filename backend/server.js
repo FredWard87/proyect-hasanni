@@ -110,6 +110,8 @@ app.use('/biometric', biometricRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
 app.use('/pagos', paymentsRoutes);
+app.use('/usuarios', apiRoutes); // ← NUEVA LÍNEA
+
 
 
 // Rutas con autenticación
