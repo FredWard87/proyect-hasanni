@@ -21,7 +21,6 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const excelReportRoutes = require('./routes/excelReportRoutes');
 
-
 // Middleware de autenticación
 const authMiddleware = require('./middlewares/authMiddleware');
 
@@ -65,7 +64,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rutas de autenticación (ambas versiones para compatibilidad)
 app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes); // ← AGREGADO: Compatibilidad con frontend
+app.use('/auth', authRoutes);
 
 app.use(passport.initialize());
 
@@ -105,14 +104,13 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/api/biometric', biometricRoutes);
 app.use('/biometric', biometricRoutes);
 
+// ✅ AGREGADO: Rutas de usuarios también en raíz para compatibilidad
+app.use('/usuarios', apiRoutes);
 
 // Rutas API
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
 app.use('/pagos', paymentsRoutes);
-app.use('/usuarios', apiRoutes); // ← NUEVA LÍNEA
-
-
 
 // Rutas con autenticación
 app.use('/api/location', authMiddleware, locationRoutes);
@@ -124,7 +122,6 @@ app.use('/preferencias', preferencesRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 app.use('/notifications', authMiddleware, notificationRoutes);
 
-
 // Rutas de inventario
 app.use('/api/inventario', authMiddleware, inventoryRoutes);
 app.use('/inventario', authMiddleware, inventoryRoutes);
@@ -133,7 +130,6 @@ app.use('/api/reportes', authMiddleware, reportRoutes);
 app.use('/reportes', authMiddleware, reportRoutes);
 
 app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
-
 
 // === MANEJO DE ERRORES ===
 
@@ -203,6 +199,7 @@ const iniciarServidor = async () => {
       console.log(`🌐 URL: http://localhost:${PORT}`);
       console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
+      console.log(`👥 Usuarios API (raíz): http://localhost:${PORT}/usuarios`);
       console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth (también /auth)`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
       console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
