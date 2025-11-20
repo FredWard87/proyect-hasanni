@@ -8,8 +8,8 @@ class EmailService {
             SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
             process.env.BREVO_API_KEY
         );
-        this.fromEmail = 'audit3674@gmail.com';
-        this.fromName = 'Sistema Hasanni';
+        this.fromEmail = 'r41474721@gmail.com';
+        this.fromName = 'Productos';
     }
 
     async sendEmail(to, subject, html) {
