@@ -34,27 +34,39 @@ const PORT = process.env.PORT || 5000;
 // Cargar documentación Swagger
 const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 
-// === MIDDLEWARE ===
+// === CONFIGURACIÓN CORS MEJORADA ===
 
-// CORS - Permitir solicitudes del frontend
-app.use(cors({
+const corsOptions = {
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:3000',
     'https://proyect-hasanni.onrender.com',
-    'https://proyect-hasanni-backedn.onrender.com'
+    'https://proyect-hasanni-backedn.onrender.com',
+    'http://localhost:3000'
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
-    'ngrok-skip-browser-warning' 
+    'ngrok-skip-browser-warning',
+    'X-Requested-With',
+    'Accept'
   ],
-  credentials: true
-}));
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+// Aplicar CORS a todas las rutas
+app.use(cors(corsOptions));
+
+// Manejar preflight requests (OPTIONS) explícitamente
+app.options('*', cors(corsOptions));
 
 // Bypass ngrok warning page
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
+  // Permitir User-Agent header
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, ngrok-skip-browser-warning, User-Agent, X-Requested-With, Accept');
   next();
 });
 
@@ -62,18 +74,24 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Middleware para logging de requests
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  
+  // Log headers CORS para debugging
+  if (req.method === 'OPTIONS') {
+    console.log('📋 Preflight request recibida');
+  }
+  
+  next();
+});
+
 // Rutas de autenticación (ambas versiones para compatibilidad)
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes);
 
 app.use(passport.initialize());
-
-// Logging de requests
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`${timestamp} - ${req.method} ${req.path}`);
-  next();
-});
 
 // === RUTAS ===
 
@@ -93,7 +111,22 @@ app.get('/', (req, res) => {
       inventario: '/api/inventario',
       reportes: '/api/reportes',
       auth: '/api/auth (también disponible en /auth)'
+    },
+    cors: {
+      allowedOrigins: corsOptions.origin,
+      allowedMethods: corsOptions.methods,
+      allowedHeaders: corsOptions.allowedHeaders
     }
+  });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -104,7 +137,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/api/biometric', biometricRoutes);
 app.use('/biometric', biometricRoutes);
 
-// ✅ AGREGADO: Rutas de usuarios también en raíz para compatibilidad
+// Rutas de usuarios también en raíz para compatibilidad
 app.use('/usuarios', apiRoutes);
 
 // Rutas API
@@ -162,6 +195,11 @@ app.use(/.*/, (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Error global:', err);
   
+  // Log CORS errors específicamente
+  if (err.message && err.message.includes('CORS')) {
+    console.error('❌ Error CORS detectado:', err.message);
+  }
+  
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({
       success: false,
@@ -205,7 +243,7 @@ const iniciarServidor = async () => {
       console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
       console.log(`📦 Inventario API: http://localhost:${PORT}/api/inventario`);
       console.log(`📊 Reportes API: http://localhost:${PORT}/api/reportes`);
-      console.log(`🌍 CORS habilitado para: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`🌍 CORS habilitado para: ${corsOptions.origin.join(', ')}`);
       console.log(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log('🚀 ===============================================');
       console.log('');
