@@ -138,7 +138,6 @@ app.use('/api/biometric', biometricRoutes);
 app.use('/biometric', biometricRoutes);
 
 // Rutas de usuarios también en raíz para compatibilidad
-app.use('/usuarios', apiRoutes);
 
 // Rutas API
 app.use('/api', apiRoutes);
