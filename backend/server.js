@@ -162,6 +162,8 @@ app.use('/api/reportes', authMiddleware, reportRoutes);
 app.use('/reportes', authMiddleware, reportRoutes);
 
 app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
+app.use('/reportes/excel', authMiddleware, excelReportRoutes);
+
 
 // === MANEJO DE ERRORES ===
 
