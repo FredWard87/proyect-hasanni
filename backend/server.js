@@ -103,19 +103,33 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Rutas públicas (sin autenticación)
 app.use('/api/biometric', biometricRoutes);
+app.use('/biometric', biometricRoutes);
+
 
 // Rutas API
 app.use('/api', apiRoutes);
 app.use('/api/pagos', paymentsRoutes);
+app.use('/pagos', paymentsRoutes);
+
 
 // Rutas con autenticación
 app.use('/api/location', authMiddleware, locationRoutes);
+app.use('/location', authMiddleware, locationRoutes);
+
 app.use('/api/preferencias', preferencesRoutes);
+app.use('/preferencias', preferencesRoutes);
+
 app.use('/api/notifications', authMiddleware, notificationRoutes);
+app.use('/notifications', authMiddleware, notificationRoutes);
+
 
 // Rutas de inventario
 app.use('/api/inventario', authMiddleware, inventoryRoutes);
+app.use('/inventario', authMiddleware, inventoryRoutes);
+
 app.use('/api/reportes', authMiddleware, reportRoutes);
+app.use('/reportes', authMiddleware, reportRoutes);
+
 app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
 
 
