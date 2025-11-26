@@ -28,7 +28,10 @@ import {
   Tooltip,
   Avatar,
   Divider,
-  Grid
+  Grid,
+  InputAdornment,
+  Collapse,
+  AlertTitle
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -43,12 +46,123 @@ import {
   Business as BusinessIcon,
   ArrowBack as ArrowBackIcon,
   Refresh as RefreshIcon,
-  ContactPhone as ContactPhoneIcon
+  ContactPhone as ContactPhoneIcon,
+  Error as ErrorIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+// Configuración de validaciones
+const VALIDACIONES = {
+  nombre: {
+    minLength: 2,
+    maxLength: 400,
+    pattern: /^[a-zA-ZÀ-ÿ\u00f1\u00d1\s\-\&\.\,\(\)\d]+$/,
+    mensajeError: 'El nombre debe contener solo letras, números, espacios y los siguientes caracteres: - & . , ( )',
+    placeholder: 'Ej: Distribuidora ABC S.A. (2-100 caracteres)'
+  },
+  contacto: {
+    minLength: 2,
+    maxLength: 50,
+    pattern: /^[a-zA-ZÀ-ÿ\u00f1\u00d1\s\.]+$/,
+    mensajeError: 'El nombre de contacto debe contener solo letras y espacios',
+    placeholder: 'Ej: Juan Pérez (2-50 caracteres)'
+  },
+ telefono: {
+  minLength: 7, 
+  maxLength: 12,
+  pattern: /^\+\d{1,4}\d{7,12}$/,
+  mensajeError: 'El teléfono debe tener entre 7 y 12 dígitos después de la lada',
+  placeholder: 'Selecciona lada y escribe teléfono'
+},
+  email: {
+    minLength: 5,
+    maxLength: 100,
+    pattern: /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
+    mensajeError: 'El formato del email no es válido',
+    placeholder: 'contacto@empresa.com (5-100 caracteres)'
+  },
+  direccion: {
+    minLength: 5,
+    maxLength: 200,
+    pattern: /^[a-zA-ZÀ-ÿ\u00f1\u00d1\s\-\#\.\,\d]+$/,
+    mensajeError: 'La dirección debe contener solo letras, números, espacios y los caracteres: - # . ,',
+    placeholder: 'Calle, número, colonia, ciudad... (5-200 caracteres)'
+  }
+};
+
+
+
+// Función de validación robusta
+const validarCampo = (campo, valor) => {
+  const config = VALIDACIONES[campo];
+  if (!config) return { valido: true, mensaje: '' };
+
+  // Si el campo es opcional y está vacío, es válido
+  if (!valor.trim() && campo !== 'nombre') {
+    return { valido: true, mensaje: '' };
+  }
+
+  // Validar longitud mínima
+  if (valor.length < config.minLength) {
+    return { 
+      valido: false, 
+      mensaje: `Mínimo ${config.minLength} caracteres requeridos` 
+    };
+  }
+
+  // Validar longitud máxima
+  if (valor.length > config.maxLength) {
+    return { 
+      valido: false, 
+      mensaje: `Máximo ${config.maxLength} caracteres permitidos` 
+    };
+  }
+
+  // En la función validarCampo, para el caso del teléfono:
+if (campo === 'telefono' && valor.trim()) {
+  // Remover espacios para validar
+  const telefonoLimpio = valor.replace(/\s/g, '');
+  
+  // Validar que empiece con +52 y tenga exactamente 10 dígitos después
+  
+}
+
+  // Validar patrón si existe
+  if (config.pattern && !config.pattern.test(valor)) {
+    return { 
+      valido: false, 
+      mensaje: config.mensajeError 
+    };
+  }
+
+
+
+  return { valido: true, mensaje: '' };
+};
+
+// Función para sanitizar entrada
+const sanitizarEntrada = (valor, maxLength = 100) => {
+  if (typeof valor !== 'string') return '';
+  
+  // Remover caracteres especiales peligrosos
+  let sanitized = valor
+    .replace(/[<>]/g, '') // Remover < y >
+    .replace(/javascript:/gi, '') // Remover javascript:
+    .replace(/on\w+=/gi, '') // Remover eventos como onclick, onload, etc.
+    .replace(/'/g, '') // Remover comillas simples
+    .replace(/"/g, ''); // Remover comillas dobles
+  
+  // Limitar longitud
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+  
+  return sanitized;
+};
 
 const Proveedores = () => {
   const navigate = useNavigate();
@@ -58,7 +172,18 @@ const Proveedores = () => {
   const [success, setSuccess] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [editandoProveedor, setEditandoProveedor] = useState(null);
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
+  nombre: '',
+  telefono: '', // Teléfono completo (lada + número)
+  lada: '+52',  // Lada por separado
+  numeroTelefono: '', // Solo el número sin lada
+  contacto: '',
+  email: '',
+  direccion: ''
+});
+
+  // Estados de validación
+  const [erroresValidacion, setErroresValidacion] = useState({
     nombre: '',
     telefono: '',
     contacto: '',
@@ -101,9 +226,92 @@ const Proveedores = () => {
     }
   };
 
+  // Función de validación en tiempo real
+  const validarCampoEnTiempoReal = (campo, valor) => {
+    const resultado = validarCampo(campo, valor);
+    setErroresValidacion(prev => ({
+      ...prev,
+      [campo]: resultado.mensaje
+    }));
+    return resultado.valido;
+  };
+
+  // Manejar cambio en los campos con validación
+  const handleCampoChange = (campo, valor) => {
+    // Sanitizar entrada
+    const valorSanitizado = sanitizarEntrada(valor, VALIDACIONES[campo]?.maxLength || 100);
+    
+    // Validar en tiempo real
+    validarCampoEnTiempoReal(campo, valorSanitizado);
+    
+    // Actualizar estado
+    setFormData(prev => ({
+      ...prev,
+      [campo]: valorSanitizado
+    }));
+  };
+
+  // Validar formulario completo
+  const validarFormulario = () => {
+    const nuevosErrores = {};
+    let esValido = true;
+
+    // Validar nombre (obligatorio)
+    const nombreValido = validarCampoEnTiempoReal('nombre', formData.nombre);
+    if (!nombreValido) {
+      nuevosErrores.nombre = erroresValidacion.nombre;
+      esValido = false;
+    }
+
+    // Validar contacto (opcional)
+    if (formData.contacto.trim()) {
+      const contactoValido = validarCampoEnTiempoReal('contacto', formData.contacto);
+      if (!contactoValido) {
+        nuevosErrores.contacto = erroresValidacion.contacto;
+        esValido = false;
+      }
+    }
+
+    // Validar teléfono (opcional)
+    if (formData.telefono.trim()) {
+      const telefonoValido = validarCampoEnTiempoReal('telefono', formData.telefono);
+      if (!telefonoValido) {
+        nuevosErrores.telefono = erroresValidacion.telefono;
+        esValido = false;
+      }
+    }
+
+    // Validar email (opcional)
+    if (formData.email.trim()) {
+      const emailValido = validarCampoEnTiempoReal('email', formData.email);
+      if (!emailValido) {
+        nuevosErrores.email = erroresValidacion.email;
+        esValido = false;
+      }
+    }
+
+    // Validar dirección (opcional)
+    if (formData.direccion.trim()) {
+      const direccionValido = validarCampoEnTiempoReal('direccion', formData.direccion);
+      if (!direccionValido) {
+        nuevosErrores.direccion = erroresValidacion.direccion;
+        esValido = false;
+      }
+    }
+
+    setErroresValidacion(nuevosErrores);
+    return esValido;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validar formulario antes de enviar
+    if (!validarFormulario()) {
+      mostrarMensaje('Por favor corrige los errores en el formulario', 'error');
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
@@ -153,18 +361,39 @@ const Proveedores = () => {
       email: '',
       direccion: ''
     });
+    setErroresValidacion({
+      nombre: '',
+      telefono: '',
+      contacto: '',
+      email: '',
+      direccion: ''
+    });
     setEditandoProveedor(null);
     setMostrarFormulario(true);
   };
 
   const abrirFormularioEditar = (proveedor) => {
-    setFormData({
-      nombre: proveedor.nombre || '',
-      telefono: proveedor.telefono || '',
-      contacto: proveedor.contacto || '',
-      email: proveedor.email || '',
-      direccion: proveedor.direccion || ''
-    });
+  let lada = '+52';
+  let numeroTelefono = '';
+  
+  if (proveedor.telefono) {
+    // Extraer lada y número del teléfono existente
+    const match = proveedor.telefono.match(/^(\+\d+)(\d+)$/);
+    if (match) {
+      lada = match[1];
+      numeroTelefono = match[2];
+    }
+  }
+  
+  setFormData({
+    nombre: proveedor.nombre || '',
+    telefono: proveedor.telefono || '',
+    lada: lada,
+    numeroTelefono: numeroTelefono,
+    contacto: proveedor.contacto || '',
+    email: proveedor.email || '',
+    direccion: proveedor.direccion || ''
+  });
     setEditandoProveedor(proveedor);
     setMostrarFormulario(true);
   };
@@ -173,6 +402,13 @@ const Proveedores = () => {
     setMostrarFormulario(false);
     setEditandoProveedor(null);
     setFormData({
+      nombre: '',
+      telefono: '',
+      contacto: '',
+      email: '',
+      direccion: ''
+    });
+    setErroresValidacion({
       nombre: '',
       telefono: '',
       contacto: '',
@@ -195,6 +431,43 @@ const Proveedores = () => {
     });
   };
 
+  // Función para obtener el color del borde del campo según la validación
+  const getBorderColor = (campo) => {
+    if (erroresValidacion[campo]) return 'error.main';
+    if (formData[campo] && !erroresValidacion[campo]) return 'success.main';
+    return 'grey.400';
+  };
+
+  // Función para obtener el icono de validación
+  const getValidationIcon = (campo) => {
+    if (erroresValidacion[campo]) {
+      return <ErrorIcon color="error" fontSize="small" />;
+    }
+    if (formData[campo] && !erroresValidacion[campo]) {
+      return <CheckCircleIcon color="success" fontSize="small" />;
+    }
+    return null;
+  };
+
+  // Función para obtener el texto de ayuda del campo
+  const getHelperText = (campo) => {
+    const config = VALIDACIONES[campo];
+    if (!config) return '';
+    
+    if (erroresValidacion[campo]) {
+      return erroresValidacion[campo];
+    }
+    
+    const length = formData[campo]?.length || 0;
+    const maxLength = config.maxLength;
+    
+    if (campo === 'nombre') {
+      return `${length}/${maxLength} caracteres (requerido)`;
+    }
+    
+    return length > 0 ? `${length}/${maxLength} caracteres` : '(opcional)';
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
       <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }} elevation={2}>
@@ -215,17 +488,19 @@ const Proveedores = () => {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
-        {error && (
-          <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
+        <Collapse in={!!error}>
+          <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3, borderRadius: 2 }}>
+            <AlertTitle>Error</AlertTitle>
             {error}
           </Alert>
-        )}
+        </Collapse>
 
-        {success && (
-          <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 3 }}>
+        <Collapse in={!!success}>
+          <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 3, borderRadius: 2 }}>
+            <AlertTitle>Éxito</AlertTitle>
             {success}
           </Alert>
-        )}
+        </Collapse>
 
         {/* Header con estadísticas */}
         <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
@@ -418,10 +693,24 @@ const Proveedores = () => {
                 variant="outlined"
                 required
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                placeholder="Ej: Distribuidora ABC S.A."
+                onChange={(e) => handleCampoChange('nombre', e.target.value)}
+                placeholder={VALIDACIONES.nombre.placeholder}
+                error={!!erroresValidacion.nombre}
+                helperText={getHelperText('nombre')}
+                inputProps={{ 
+                  maxLength: VALIDACIONES.nombre.maxLength,
+                  pattern: VALIDACIONES.nombre.pattern.source
+                }}
                 InputProps={{
-                  startAdornment: <BusinessIcon sx={{ mr: 1, color: 'grey.500' }} />
+                  startAdornment: <BusinessIcon sx={{ mr: 1, color: 'grey.500' }} />,
+                  endAdornment: getValidationIcon('nombre')
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': {
+                      borderColor: getBorderColor('nombre'),
+                    },
+                  }
                 }}
               />
 
@@ -432,25 +721,112 @@ const Proveedores = () => {
                     label="Nombre del Contacto"
                     variant="outlined"
                     value={formData.contacto}
-                    onChange={(e) => setFormData({ ...formData, contacto: e.target.value })}
-                    placeholder="Ej: Juan Pérez"
+                    onChange={(e) => handleCampoChange('contacto', e.target.value)}
+                    placeholder={VALIDACIONES.contacto.placeholder}
+                    error={!!erroresValidacion.contacto}
+                    helperText={getHelperText('contacto')}
+                    inputProps={{ 
+                      maxLength: VALIDACIONES.contacto.maxLength,
+                      pattern: VALIDACIONES.contacto.pattern.source
+                    }}
                     InputProps={{
-                      startAdornment: <PersonIcon sx={{ mr: 1, color: 'grey.500' }} />
+                      startAdornment: <PersonIcon sx={{ mr: 1, color: 'grey.500' }} />,
+                      endAdornment: getValidationIcon('contacto')
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '&.Mui-focused fieldset': {
+                          borderColor: getBorderColor('contacto'),
+                        },
+                      }
                     }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Teléfono"
-                    variant="outlined"
-                    value={formData.telefono}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    placeholder="Ej: +52 123 456 7890"
-                    InputProps={{
-                      startAdornment: <PhoneIcon sx={{ mr: 1, color: 'grey.500' }} />
-                    }}
-                  />
+        <TextField
+  fullWidth
+  label="Teléfono"
+  variant="outlined"
+  value={formData.numeroTelefono || ''} // Solo el número sin lada
+  onChange={(e) => {
+    const valor = e.target.value;
+    // Permitir solo números, máximo 10 dígitos
+    const soloNumeros = valor.replace(/\D/g, '').slice(0, 10);
+    handleCampoChange('numeroTelefono', soloNumeros);
+    
+    // Actualizar el teléfono completo automáticamente
+    const ladaActual = formData.lada || '+52';
+    const telefonoCompleto = ladaActual + soloNumeros;
+    handleCampoChange('telefono', telefonoCompleto);
+  }}
+  placeholder="1234567890"
+  error={!!erroresValidacion.telefono}
+  helperText={erroresValidacion.telefono || (formData.numeroTelefono ? `${formData.numeroTelefono.length}/10 dígitos` : 'Escribe 10 dígitos')}
+  inputProps={{ 
+    maxLength: 10,
+    inputMode: 'numeric'
+  }}
+  InputProps={{
+    startAdornment: (
+      <InputAdornment position="start">
+        <PhoneIcon sx={{ color: 'grey.500', mr: 1 }} />
+        <TextField
+          select
+          variant="standard"
+          value={formData.lada || '+52'}
+          onChange={(e) => {
+            const nuevaLada = e.target.value;
+            handleCampoChange('lada', nuevaLada);
+            
+            // Actualizar el teléfono completo con la nueva lada
+            const numeroActual = formData.numeroTelefono || '';
+            const telefonoCompleto = nuevaLada + numeroActual;
+            handleCampoChange('telefono', telefonoCompleto);
+          }}
+          sx={{
+            minWidth: 100,
+            '& .MuiInput-underline:before': { borderBottom: 'none' },
+            '& .MuiInput-underline:after': { borderBottom: 'none' },
+            '& .MuiSelect-select': { 
+              paddingRight: '24px !important',
+              paddingLeft: '8px !important'
+            }
+          }}
+          SelectProps={{
+            native: true,
+          }}
+        >
+          <option value="+52">🇲🇽 +52</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+51">🇵🇪 +51</option>
+          <option value="+56">🇨🇱 +56</option>
+          <option value="+54">🇦🇷 +54</option>
+          <option value="+55">🇧🇷 +55</option>
+          <option value="+57">🇨🇴 +57</option>
+          <option value="+58">🇻🇪 +58</option>
+          <option value="+503">🇸🇻 +503</option>
+          <option value="+504">🇭🇳 +504</option>
+          <option value="+505">🇳🇮 +505</option>
+          <option value="+506">🇨🇷 +506</option>
+          <option value="+507">🇵🇦 +507</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+39">🇮🇹 +39</option>
+        </TextField>
+      </InputAdornment>
+    ),
+    endAdornment: getValidationIcon('telefono'),
+  }}
+  sx={{
+    '& .MuiOutlinedInput-root': {
+      '&.Mui-focused fieldset': {
+        borderColor: getBorderColor('telefono'),
+      },
+    }
+  }}
+/>
                 </Grid>
               </Grid>
 
@@ -460,10 +836,24 @@ const Proveedores = () => {
                 type="email"
                 variant="outlined"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="contacto@empresa.com"
+                onChange={(e) => handleCampoChange('email', e.target.value)}
+                placeholder={VALIDACIONES.email.placeholder}
+                error={!!erroresValidacion.email}
+                helperText={getHelperText('email')}
+                inputProps={{ 
+                  maxLength: VALIDACIONES.email.maxLength,
+                  pattern: VALIDACIONES.email.pattern.source
+                }}
                 InputProps={{
-                  startAdornment: <EmailIcon sx={{ mr: 1, color: 'grey.500' }} />
+                  startAdornment: <EmailIcon sx={{ mr: 1, color: 'grey.500' }} />,
+                  endAdornment: getValidationIcon('email')
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': {
+                      borderColor: getBorderColor('email'),
+                    },
+                  }
                 }}
               />
 
@@ -474,10 +864,28 @@ const Proveedores = () => {
                 multiline
                 rows={3}
                 value={formData.direccion}
-                onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                placeholder="Calle, número, colonia, ciudad..."
+                onChange={(e) => handleCampoChange('direccion', e.target.value)}
+                placeholder={VALIDACIONES.direccion.placeholder}
+                error={!!erroresValidacion.direccion}
+                helperText={getHelperText('direccion')}
+                inputProps={{ 
+                  maxLength: VALIDACIONES.direccion.maxLength,
+                  pattern: VALIDACIONES.direccion.pattern.source
+                }}
                 InputProps={{
-                  startAdornment: <LocationIcon sx={{ mr: 1, color: 'grey.500', alignSelf: 'flex-start', mt: 1 }} />
+                  startAdornment: (
+                    <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}>
+                      <LocationIcon sx={{ color: 'grey.500' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: getValidationIcon('direccion')
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': {
+                      borderColor: getBorderColor('direccion'),
+                    },
+                  }
                 }}
               />
             </Stack>
@@ -495,7 +903,7 @@ const Proveedores = () => {
               type="submit"
               variant="contained"
               startIcon={loading ? <CircularProgress size={16} /> : <SaveIcon />}
-              disabled={loading}
+              disabled={loading || Object.values(erroresValidacion).some(error => error !== '') || !formData.nombre.trim()}
               sx={{ borderRadius: 2 }}
             >
               {editandoProveedor ? 'Actualizar' : 'Crear Proveedor'}
