@@ -26,7 +26,7 @@ router.post('/admin-reset-password', authMiddleware, authController.adminResetPa
 
 // Google OAuth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-router.get('/verify-token', authController.verifyToken);
+router.get('/verify-token', authMiddleware, authController.verifyToken);
 
 // ✅ CORREGIDO: Manejo mejorado del callback de Google
 router.get('/google/callback',
