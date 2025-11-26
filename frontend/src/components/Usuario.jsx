@@ -39,7 +39,8 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -61,7 +62,11 @@ import {
   Security as SecurityIcon,
   SystemUpdate as SystemUpdateIcon,
   Refresh as RefreshIcon,
-  VpnKey as KeyIcon
+  VpnKey as KeyIcon,
+  Error as ErrorIcon,
+  CheckCircle as CheckCircleIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import axios from 'axios';
@@ -91,6 +96,78 @@ const PERMISOS = {
     editar: true,
     eliminar: true
   }
+};
+
+// Configuración de validaciones
+const VALIDACIONES = {
+  nombre: {
+    minLength: 2,
+    maxLength: 50,
+    pattern: /^[a-zA-ZÀ-ÿ\u00f1\u00d1\s]+$/,
+    mensajeError: 'El nombre debe contener solo letras y espacios (2-50 caracteres)'
+  },
+  email: {
+    minLength: 5,
+    maxLength: 100,
+    pattern: /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
+    mensajeError: 'El formato del email no es válido'
+  },
+  password: {
+    minLength: 8,
+    maxLength: 128,
+    pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~])[A-Za-z\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]{8,128}$/,
+    mensajeError: 'La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas, números y símbolos'
+  }
+};
+
+// Función de validación robusta
+const validarCampo = (campo, valor) => {
+  const config = VALIDACIONES[campo];
+  if (!config) return { valido: true, mensaje: '' };
+
+  // Validar longitud mínima
+  if (valor.length < config.minLength) {
+    return { 
+      valido: false, 
+      mensaje: `Mínimo ${config.minLength} caracteres requeridos` 
+    };
+  }
+
+  // Validar longitud máxima
+  if (valor.length > config.maxLength) {
+    return { 
+      valido: false, 
+      mensaje: `Máximo ${config.maxLength} caracteres permitidos` 
+    };
+  }
+
+  // Validar patrón si existe
+  if (config.pattern && !config.pattern.test(valor)) {
+    return { 
+      valido: false, 
+      mensaje: config.mensajeError 
+    };
+  }
+
+  return { valido: true, mensaje: '' };
+};
+
+// Función para sanitizar entrada
+const sanitizarEntrada = (valor, maxLength = 50) => {
+  if (typeof valor !== 'string') return '';
+  
+  // Remover caracteres especiales peligrosos
+  let sanitized = valor
+    .replace(/[<>]/g, '') // Remover < y >
+    .replace(/javascript:/gi, '') // Remover javascript:
+    .replace(/on\w+=/gi, ''); // Remover eventos como onclick, onload, etc.
+  
+  // Limitar longitud
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+  
+  return sanitized;
 };
 
 // Componente de campanita de notificaciones REAL
@@ -354,6 +431,15 @@ const Usuarios = () => {
     rol: 'lector'
   });
 
+  // Estados de validación
+  const [erroresValidacion, setErroresValidacion] = useState({
+    nombre: '',
+    email: '',
+    password: ''
+  });
+
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+
   const navigate = useNavigate();
 
   // Configuración de roles con Material-UI
@@ -418,25 +504,24 @@ const Usuarios = () => {
   };
 
   // Obtener usuario autenticado desde el backend
-  // Obtener usuario autenticado desde el backend
-useEffect(() => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    navigate('/');
-    return;
-  }
-  axios.get(`${API_URL}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-   .then(res => {
-  console.log('👤 Usuario cargado:', res.data);
-  setUser(res.data.data); // ✅ Esto guarda solo { id: 1, nombre: '...', rol: 'admin' }
-})
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/');
+      return;
+    }
+    axios.get(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+     .then(res => {
+      console.log('👤 Usuario cargado:', res.data);
+      setUser(res.data.data);
+    })
     .catch(() => {
       setUser(null);
       navigate('/');
     });
-}, [navigate]);
+  }, [navigate]);
 
   // Cargar usuarios
   useEffect(() => {
@@ -477,80 +562,136 @@ useEffect(() => {
     }
   };
 
-  // ✅ FUNCIÓN MEJORADA PARA ENVIAR RESTABLECIMIENTO DE CONTRASEÑA
   // ✅ FUNCIÓN MEJORADA PARA ENVIAR RESTABLECIMIENTO DE CONTRASEÑA CON SOPORTE OFFLINE
-const enviarRestablecimientoContraseña = async (usuario) => {
-  const mensajeConfirmacion = esUsuarioActual(usuario) 
-    ? `¿Enviar enlace de restablecimiento de contraseña a tu email (${usuario.email})?`
-    : `¿Enviar enlace de restablecimiento de contraseña a ${usuario.email}?`;
-  
-  if (!window.confirm(mensajeConfirmacion)) {
-    return;
-  }
-  
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('token');
+  const enviarRestablecimientoContraseña = async (usuario) => {
+    const mensajeConfirmacion = esUsuarioActual(usuario) 
+      ? `¿Enviar enlace de restablecimiento de contraseña a tu email (${usuario.email})?`
+      : `¿Enviar enlace de restablecimiento de contraseña a ${usuario.email}?`;
     
-    // Endpoint diferente según si es admin o usuario normal
-    const endpoint = esAdministrador() 
-      ? `${API_URL}/auth/admin-reset-password`
-      : `${API_URL}/auth/forgot-password`;
-    
-    const payload = esAdministrador() 
-      ? { userId: usuario.id }
-      : { email: usuario.email };
-    
-    const response = await axios.post(endpoint, payload, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (response.data.success) {
-      const data = response.data.data;
-      
-      let mensajeExito = '';
-      
-      if (esUsuarioActual(usuario)) {
-        mensajeExito = 'Solicitud de restablecimiento procesada';
-      } else {
-        mensajeExito = `Solicitud de restablecimiento procesada para ${usuario.email}`;
-      }
-      
-      // Agregar información del modo
-      if (data.mode === 'offline') {
-        mensajeExito += ' (modo offline)';
-      }
-      
-      mostrarMensaje(mensajeExito, 'success');
-      
-      // Mostrar información detallada en consola
-      console.log('🔐 INFORMACIÓN DE RESTABLECIMIENTO:');
-      console.log(`👤 Usuario: ${usuario.nombre} (${usuario.email})`);
-      console.log(`🌐 Modo: ${data.mode}`);
-      console.log(`📧 Email enviado: ${data.emailSent ? 'SÍ' : 'NO'}`);
-      
-      if (data.resetLink) {
-        console.log(`🔗 Enlace: ${data.resetLink}`);
-      }
-      
-      if (data.token) {
-        console.log(`🔑 Token: ${data.token}`);
-        console.log('📋 Puedes copiar este token y pegarlo directamente en la URL:');
-        console.log(`   ${window.location.origin}/reset-password/${data.token}`);
-      }
-      
-      console.log('⏰ El token expira en 1 hora');
-      
-    } else {
-      mostrarMensaje(response.data.message || 'Error al procesar la solicitud', 'error');
+    if (!window.confirm(mensajeConfirmacion)) {
+      return;
     }
-  } catch (err) {
-    console.error('❌ Error en restablecimiento:', err);
-    mostrarMensaje(err.response?.data?.message || 'Error de conexión', 'error');
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      // Endpoint diferente según si es admin o usuario normal
+      const endpoint = esAdministrador() 
+        ? `${API_URL}/auth/admin-reset-password`
+        : `${API_URL}/auth/forgot-password`;
+      
+      const payload = esAdministrador() 
+        ? { userId: usuario.id }
+        : { email: usuario.email };
+      
+      const response = await axios.post(endpoint, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const data = response.data.data;
+        
+        let mensajeExito = '';
+        
+        if (esUsuarioActual(usuario)) {
+          mensajeExito = 'Solicitud de restablecimiento procesada';
+        } else {
+          mensajeExito = `Solicitud de restablecimiento procesada para ${usuario.email}`;
+        }
+        
+        // Agregar información del modo
+        if (data.mode === 'offline') {
+          mensajeExito += ' (modo offline)';
+        }
+        
+        mostrarMensaje(mensajeExito, 'success');
+        
+        // Mostrar información detallada en consola
+        console.log('🔐 INFORMACIÓN DE RESTABLECIMIENTO:');
+        console.log(`👤 Usuario: ${usuario.nombre} (${usuario.email})`);
+        console.log(`🌐 Modo: ${data.mode}`);
+        console.log(`📧 Email enviado: ${data.emailSent ? 'SÍ' : 'NO'}`);
+        
+        if (data.resetLink) {
+          console.log(`🔗 Enlace: ${data.resetLink}`);
+        }
+        
+        if (data.token) {
+          console.log(`🔑 Token: ${data.token}`);
+          console.log('📋 Puedes copiar este token y pegarlo directamente en la URL:');
+          console.log(`   ${window.location.origin}/reset-password/${data.token}`);
+        }
+        
+        console.log('⏰ El token expira en 1 hora');
+        
+      } else {
+        mostrarMensaje(response.data.message || 'Error al procesar la solicitud', 'error');
+      }
+    } catch (err) {
+      console.error('❌ Error en restablecimiento:', err);
+      mostrarMensaje(err.response?.data?.message || 'Error de conexión', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función de validación en tiempo real
+  const validarCampoEnTiempoReal = (campo, valor) => {
+    const resultado = validarCampo(campo, valor);
+    setErroresValidacion(prev => ({
+      ...prev,
+      [campo]: resultado.mensaje
+    }));
+    return resultado.valido;
+  };
+
+  // Manejar cambio en los campos con validación
+  const handleCampoChange = (campo, valor) => {
+    // Sanitizar entrada
+    const valorSanitizado = sanitizarEntrada(valor, VALIDACIONES[campo]?.maxLength || 50);
+    
+    // Validar en tiempo real
+    validarCampoEnTiempoReal(campo, valorSanitizado);
+    
+    // Actualizar estado
+    setFormData(prev => ({
+      ...prev,
+      [campo]: valorSanitizado
+    }));
+  };
+
+  // Validar formulario completo
+  const validarFormulario = () => {
+    const nuevosErrores = {};
+    let esValido = true;
+
+    // Validar nombre
+    const nombreValido = validarCampoEnTiempoReal('nombre', formData.nombre);
+    if (!nombreValido) {
+      nuevosErrores.nombre = erroresValidacion.nombre;
+      esValido = false;
+    }
+
+    // Validar email
+    const emailValido = validarCampoEnTiempoReal('email', formData.email);
+    if (!emailValido) {
+      nuevosErrores.email = erroresValidacion.email;
+      esValido = false;
+    }
+
+    // Validar password solo si es nuevo usuario
+    if (!editandoUsuario) {
+      const passwordValido = validarCampoEnTiempoReal('password', formData.password);
+      if (!passwordValido) {
+        nuevosErrores.password = erroresValidacion.password;
+        esValido = false;
+      }
+    }
+
+    setErroresValidacion(nuevosErrores);
+    return esValido;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -562,6 +703,12 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     
     if (!editandoUsuario && !tienePermiso('crear')) {
       mostrarMensaje('No tienes permisos para crear usuarios', 'error');
+      return;
+    }
+
+    // Validar formulario antes de enviar
+    if (!validarFormulario()) {
+      mostrarMensaje('Por favor corrige los errores en el formulario', 'error');
       return;
     }
 
@@ -641,7 +788,9 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     }
     
     setFormData({ nombre: '', email: '', password: '', rol: 'lector' });
+    setErroresValidacion({ nombre: '', email: '', password: '' });
     setEditandoUsuario(null);
+    setMostrarPassword(false);
     setMostrarFormulario(true);
   };
 
@@ -657,7 +806,9 @@ const enviarRestablecimientoContraseña = async (usuario) => {
       password: '',
       rol: usuario.rol
     });
+    setErroresValidacion({ nombre: '', email: '', password: '' });
     setEditandoUsuario(usuario);
+    setMostrarPassword(false);
     setMostrarFormulario(true);
   };
 
@@ -665,6 +816,8 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     setMostrarFormulario(false);
     setEditandoUsuario(null);
     setFormData({ nombre: '', email: '', password: '', rol: 'lector' });
+    setErroresValidacion({ nombre: '', email: '', password: '' });
+    setMostrarPassword(false);
   };
 
   const obtenerInfoRol = (rol) => {
@@ -681,10 +834,11 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     });
   };
 
- const getInitials = (nombre) => {
-  if (!nombre) return '??';
-  return nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-};
+  const getInitials = (nombre) => {
+    if (!nombre) return '??';
+    return nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   const handleLogout = () => {
     // Limpiar todos los datos de autenticación
     localStorage.removeItem('token');
@@ -700,6 +854,24 @@ const enviarRestablecimientoContraseña = async (usuario) => {
     navigate('/admin/pagos');
   };
 
+  // Función para obtener el color del borde del campo según la validación
+  const getBorderColor = (campo) => {
+    if (erroresValidacion[campo]) return 'error.main';
+    if (formData[campo] && !erroresValidacion[campo]) return 'success.main';
+    return 'grey.400';
+  };
+
+  // Función para obtener el icono de validación
+  const getValidationIcon = (campo) => {
+    if (erroresValidacion[campo]) {
+      return <ErrorIcon color="error" fontSize="small" />;
+    }
+    if (formData[campo] && !erroresValidacion[campo]) {
+      return <CheckCircleIcon color="success" fontSize="small" />;
+    }
+    return null;
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
       {/* AppBar superior */}
@@ -713,13 +885,13 @@ const enviarRestablecimientoContraseña = async (usuario) => {
           <NotificationBell />
 
           {user && user.nombre && user.rol && (
-  <>
-    <Chip
-      label={`${user.nombre} (${user.rol})`}
-      color={user.rol === 'admin' ? 'error' : user.rol === 'editor' ? 'warning' : 'success'}
-      sx={{ mr: 2, fontWeight: 600 }}
-      avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
-    />
+            <>
+              <Chip
+                label={`${user.nombre} (${user.rol})`}
+                color={user.rol === 'admin' ? 'error' : user.rol === 'editor' ? 'warning' : 'success'}
+                sx={{ mr: 2, fontWeight: 600 }}
+                avatar={<Avatar>{getInitials(user.nombre)}</Avatar>}
+              />
               
               <Button
                 variant="outlined"
@@ -748,27 +920,28 @@ const enviarRestablecimientoContraseña = async (usuario) => {
                 Mi Ubicación
               </Button>
 
-<Button
-  variant="outlined"
-  onClick={() => navigate('/reportes')}
-  sx={{ 
-    bgcolor: 'rgba(255,255,255,0.9)',
-    color: 'primary.main',
-    mr: 2
-  }}
->
-  Reportes
-</Button>
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/reportes')}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  color: 'primary.main',
+                  mr: 2
+                }}
+              >
+                Reportes
+              </Button>
 
-<Button
-  variant="outlined"
-  onClick={() => navigate('/proveedores')}
-  
-  sx={{     bgcolor: 'rgba(255,255,255,0.9)',
-mr: 2 }}
->
-  Proveedores
-</Button>
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/proveedores')}
+                sx={{     
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  mr: 2 
+                }}
+              >
+                Proveedores
+              </Button>
 
               {/* Botón para Tienda */}
               <Button
@@ -1292,8 +1465,24 @@ mr: 2 }}
                 variant="outlined"
                 required
                 value={formData.nombre}
-                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                placeholder="Ingresa el nombre completo"
+                onChange={(e) => handleCampoChange('nombre', e.target.value)}
+                placeholder="Ingresa el nombre completo (2-50 caracteres)"
+                error={!!erroresValidacion.nombre}
+                helperText={erroresValidacion.nombre || `${formData.nombre.length}/50 caracteres`}
+                inputProps={{ 
+                  maxLength: 50,
+                  pattern: VALIDACIONES.nombre.pattern.source
+                }}
+                InputProps={{
+                  endAdornment: getValidationIcon('nombre')
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': {
+                      borderColor: getBorderColor('nombre'),
+                    },
+                  }
+                }}
               />
 
               <TextField
@@ -1303,21 +1492,64 @@ mr: 2 }}
                 variant="outlined"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => handleCampoChange('email', e.target.value)}
                 placeholder="usuario@ejemplo.com"
+                error={!!erroresValidacion.email}
+                helperText={erroresValidacion.email || `${formData.email.length}/100 caracteres`}
+                inputProps={{ 
+                  maxLength: 100,
+                  pattern: VALIDACIONES.email.pattern.source
+                }}
+                InputProps={{
+                  endAdornment: getValidationIcon('email')
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': {
+                      borderColor: getBorderColor('email'),
+                    },
+                  }
+                }}
               />
 
               {!editandoUsuario && (
                 <TextField
                   fullWidth
                   label="Contraseña"
-                  type="password"
+                  type={mostrarPassword ? 'text' : 'password'}
                   variant="outlined"
                   required={!editandoUsuario}
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
-                  inputProps={{ minLength: 6 }}
+                  onChange={(e) => handleCampoChange('password', e.target.value)}
+                  placeholder="Mínimo 8 caracteres con mayúsculas, minúsculas, números y símbolos"
+                  error={!!erroresValidacion.password}
+                  helperText={erroresValidacion.password || `${formData.password.length}/128 caracteres`}
+                  inputProps={{ 
+                    maxLength: 128,
+                    minLength: 8,
+                    pattern: VALIDACIONES.password.pattern.source
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        {getValidationIcon('password')}
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={() => setMostrarPassword(!mostrarPassword)}
+                          edge="end"
+                        >
+                          {mostrarPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&.Mui-focused fieldset': {
+                        borderColor: getBorderColor('password'),
+                      },
+                    }
+                  }}
                 />
               )}
 
@@ -1358,7 +1590,7 @@ mr: 2 }}
               type="submit"
               variant="contained"
               startIcon={loading ? <CircularProgress size={16} /> : <SaveIcon />}
-              disabled={loading}
+              disabled={loading || Object.values(erroresValidacion).some(error => error !== '')}
               sx={{ borderRadius: 2 }}
             >
               {editandoUsuario ? 'Actualizar' : 'Crear Usuario'}
