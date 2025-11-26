@@ -2040,6 +2040,7 @@ exports.forceLogout = async (req, res) => {
 };
 
 // Verificar token JWT
+// ✅ Verificar token JWT - CON EXCEPCIÓN PARA GOOGLE OAUTH
 exports.verifyToken = async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -2063,18 +2064,51 @@ exports.verifyToken = async (req, res) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // ✅ VERIFICAR SI LA SESIÓN ESTÁ ACTIVA EN EL SISTEMA
-    const activeSession = checkActiveSession(decoded.userId);
-    if (!activeSession) {
-      console.log(`🚨 Token válido pero sesión no activa para usuario: ${decoded.userId}`);
-      return res.status(401).json({
-        success: false,
-        message: 'Sesión inválida o cerrada'
-      });
-    }
+    console.log('🔐 VERIFY-TOKEN - Token decodificado:', {
+      userId: decoded.userId,
+      email: decoded.email,
+      authMode: decoded.authMode,
+      provider: decoded.provider
+    });
     
-    // Actualizar actividad de sesión si existe
-    updateSessionActivity(decoded.userId);
+    // ✅ EXCEPCIÓN: Si es autenticación Google, NO verificar sesión activa
+    const isGoogleAuth = decoded.authMode === 'google' || 
+                        (decoded.provider && decoded.provider === 'google') ||
+                        !decoded.authMode; // Si no tiene authMode, asumir Google (para compatibilidad)
+    
+    console.log(`🔍 Tipo de autenticación detectado: ${isGoogleAuth ? 'GOOGLE_OAUTH' : 'LOGIN_NORMAL'}`);
+    
+    if (!isGoogleAuth) {
+      // ✅ VERIFICAR SESIÓN ACTIVA SOLO PARA LOGIN NORMAL (no Google)
+      const activeSession = checkActiveSession(decoded.userId);
+      if (!activeSession) {
+        console.log(`🚨 Token válido pero sesión no activa para usuario: ${decoded.userId}`);
+        return res.status(401).json({
+          success: false,
+          message: 'Sesión inválida o cerrada'
+        });
+      }
+      
+      // Actualizar actividad de sesión si existe
+      updateSessionActivity(decoded.userId);
+      console.log('✅ Sesión normal verificada y actividad actualizada');
+    } else {
+      console.log('✅ Autenticación Google - omitiendo verificación de sesión activa');
+      
+      // ✅ REGISTRAR SESIÓN PARA GOOGLE OAUTH (opcional, para futuras verificaciones)
+      // Esto asegura que futuras llamadas a verify-token funcionen
+      const googleSession = {
+        userId: decoded.userId,
+        token: token,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
+        lastActivity: Date.now(),
+        authMode: 'google'
+      };
+      
+      activeSessions.set(decoded.userId, googleSession);
+      console.log('✅ Sesión Google registrada en activeSessions');
+    }
     
     const userResult = await query(
       'SELECT id, nombre, email, rol FROM usuarios WHERE id = $1',
@@ -2082,6 +2116,8 @@ exports.verifyToken = async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
+      console.log(`❌ Usuario no encontrado en BD: ${decoded.userId}`);
+      
       // Si el usuario no existe, invalidar sesión
       invalidateAllUserSessions(decoded.userId);
       return res.status(401).json({
@@ -2090,11 +2126,15 @@ exports.verifyToken = async (req, res) => {
       });
     }
 
+    const user = userResult.rows[0];
+    console.log(`✅ Usuario verificado: ${user.nombre} (${user.email})`);
+
     res.json({
       success: true,
-      user: userResult.rows[0],
-      authMode: decoded.authMode || 'online',
-      sessionActive: true
+      user: user,
+      authMode: decoded.authMode || 'google',
+      sessionActive: true,
+      provider: isGoogleAuth ? 'google' : 'local'
     });
   } catch (error) {
     console.error('❌ Error verificando token:', error.message);
@@ -2104,6 +2144,7 @@ exports.verifyToken = async (req, res) => {
       const decoded = jwt.decode(token);
       if (decoded && decoded.userId) {
         invalidateAllUserSessions(decoded.userId);
+        console.log(`🧹 Sesiones invalidadas para usuario: ${decoded.userId}`);
       }
     } catch (e) {
       // No hacer nada si no se puede decodificar
