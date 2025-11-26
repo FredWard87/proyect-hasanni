@@ -1,6 +1,13 @@
 const inventoryService = require('../services/inventoryService');
 const { query } = require('../config/database');
-const emailService = require('../services/emailService');
+const SibApiV3Sdk = require('@sendinblue/client');
+
+// Configurar Brevo (igual que en los otros controllers)
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+brevoApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 // Función para redondear a 2 decimales
 const roundToTwoDecimals = (num) => {
@@ -51,7 +58,7 @@ const checkAndSendLowStockAlerts = async (items) => {
   }
 };
 
-// Función para enviar alerta de stock bajo por email
+// Función para enviar alerta de stock bajo por email CON BREVO
 const sendLowStockAlert = async (lowStockProducts) => {
   try {
     // Obtener email del administrador
@@ -85,7 +92,7 @@ const sendLowStockAlert = async (lowStockProducts) => {
   }
 };
 
-// Función separada para enviar el email
+// Función separada para enviar el email CON BREVO
 const sendEmailToAdmin = async (adminEmail, lowStockProducts) => {
   try {
     // Crear contenido del email
@@ -130,13 +137,25 @@ const sendEmailToAdmin = async (adminEmail, lowStockProducts) => {
       <p>Fecha de la alerta: ${new Date().toLocaleString()}</p>
     `;
 
-    // Enviar email
-const { Resend } = require('resend');
-    
-   const resend = new Resend(process.env.RESEND_API_KEY);
+    // Enviar email usando Brevo
+    try {
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = emailSubject;
+      sendSmtpEmail.htmlContent = emailContent;
+      sendSmtpEmail.sender = { 
+        name: "Sistema de Inventario", 
+        email: "r41474721@gmail.com"
+      };
+      sendSmtpEmail.to = [{ email: adminEmail }];
 
+      const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+      console.log(`✅ Alerta de stock enviada a: ${adminEmail} - ID: ${result.messageId}`);
+    } catch (emailError) {
+      console.error('❌ Error enviando alerta con Brevo:', emailError);
+      // No lanzar error para no interrumpir el proceso
+    }
 
-    console.log(`✅ Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
+    console.log(`✅ Alerta de stock baja procesada para ${lowStockProducts.length} productos`);
     
     // Registrar la alerta en la base de datos
     for (const product of lowStockProducts) {
