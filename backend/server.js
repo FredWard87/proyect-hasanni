@@ -21,6 +21,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const excelReportRoutes = require('./routes/excelReportRoutes');
 
+
 // Middleware de autenticación
 const authMiddleware = require('./middlewares/authMiddleware');
 
@@ -34,39 +35,27 @@ const PORT = process.env.PORT || 5000;
 // Cargar documentación Swagger
 const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 
-// === CONFIGURACIÓN CORS MEJORADA ===
+// === MIDDLEWARE ===
 
-const corsOptions = {
+// CORS - Permitir solicitudes del frontend
+app.use(cors({
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:3000',
     'https://proyect-hasanni.onrender.com',
-    'https://proyect-hasanni-backedn.onrender.com',
-    'http://localhost:3000'
+    'https://proyect-hasanni-backedn.onrender.com'
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
-    'ngrok-skip-browser-warning',
-    'X-Requested-With',
-    'Accept'
+    'ngrok-skip-browser-warning' 
   ],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-};
-
-// Aplicar CORS a todas las rutas
-app.use(cors(corsOptions));
-
-// Manejar preflight requests (OPTIONS) explícitamente
-app.options('*', cors(corsOptions));
+  credentials: true
+}));
 
 // Bypass ngrok warning page
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
-  // Permitir User-Agent header
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, ngrok-skip-browser-warning, User-Agent, X-Requested-With, Accept');
   next();
 });
 
@@ -74,24 +63,18 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware para logging de requests
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-  
-  // Log headers CORS para debugging
-  if (req.method === 'OPTIONS') {
-    console.log('📋 Preflight request recibida');
-  }
-  
-  next();
-});
-
 // Rutas de autenticación (ambas versiones para compatibilidad)
 app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes);
+app.use('/auth', authRoutes); // ← AGREGADO: Compatibilidad con frontend
 
 app.use(passport.initialize());
+
+// Logging de requests
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`${timestamp} - ${req.method} ${req.path}`);
+  next();
+});
 
 // === RUTAS ===
 
@@ -104,29 +87,18 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       usuarios: '/api/usuarios',
+            usuarios: '/usuarios',
       roles: '/api/usuarios/roles',
+            roles: '/usuarios/roles',
       estadisticas: '/api/usuarios/estadisticas',
       documentation: '/api-docs',
       notifications: '/api/notifications',
       inventario: '/api/inventario',
+            inventario: '/inventario',
       reportes: '/api/reportes',
+            reportes: '/reportes',
       auth: '/api/auth (también disponible en /auth)'
-    },
-    cors: {
-      allowedOrigins: corsOptions.origin,
-      allowedMethods: corsOptions.methods,
-      allowedHeaders: corsOptions.allowedHeaders
     }
-  });
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -137,12 +109,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/api/biometric', biometricRoutes);
 app.use('/biometric', biometricRoutes);
 
-// Rutas de usuarios también en raíz para compatibilidad
 
 // Rutas API
 app.use('/api', apiRoutes);
+app.use('/', apiRoutes);
+
 app.use('/api/pagos', paymentsRoutes);
 app.use('/pagos', paymentsRoutes);
+
 
 // Rutas con autenticación
 app.use('/api/location', authMiddleware, locationRoutes);
@@ -154,6 +128,7 @@ app.use('/preferencias', preferencesRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 app.use('/notifications', authMiddleware, notificationRoutes);
 
+
 // Rutas de inventario
 app.use('/api/inventario', authMiddleware, inventoryRoutes);
 app.use('/inventario', authMiddleware, inventoryRoutes);
@@ -163,6 +138,7 @@ app.use('/reportes', authMiddleware, reportRoutes);
 
 app.use('/api/reportes/excel', authMiddleware, excelReportRoutes);
 app.use('/reportes/excel', authMiddleware, excelReportRoutes);
+
 
 
 // === MANEJO DE ERRORES ===
@@ -195,11 +171,6 @@ app.use(/.*/, (req, res) => {
 // Manejo de errores global
 app.use((err, req, res, next) => {
   console.error('Error global:', err);
-  
-  // Log CORS errors específicamente
-  if (err.message && err.message.includes('CORS')) {
-    console.error('❌ Error CORS detectado:', err.message);
-  }
   
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({
@@ -238,13 +209,12 @@ const iniciarServidor = async () => {
       console.log(`🌐 URL: http://localhost:${PORT}`);
       console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
       console.log(`👥 Usuarios API: http://localhost:${PORT}/api/usuarios`);
-      console.log(`👥 Usuarios API (raíz): http://localhost:${PORT}/usuarios`);
       console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth (también /auth)`);
       console.log(`📚 Documentación: http://localhost:${PORT}/api-docs`);
       console.log(`🔔 Notificaciones: http://localhost:${PORT} (WebSocket)`);
       console.log(`📦 Inventario API: http://localhost:${PORT}/api/inventario`);
       console.log(`📊 Reportes API: http://localhost:${PORT}/api/reportes`);
-      console.log(`🌍 CORS habilitado para: ${corsOptions.origin.join(', ')}`);
+      console.log(`🌍 CORS habilitado para: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
       console.log('🚀 ===============================================');
       console.log('');
