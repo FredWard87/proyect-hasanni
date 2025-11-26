@@ -13,6 +13,8 @@ router.post('/crear-orden', paymentsController.createPayPalOrder);
 router.post('/callback-paypal', paymentsController.handlePayPalCallback); 
 router.get('/ordenes', paymentsController.getUserOrders);
 router.get('/ordenes/:orderId', paymentsController.getOrderDetails);
+// En tu routes file, agrega:
+router.get('/debug-config', paymentsController.debugConfig);
 
 
 // Rutas de administración (requieren ser admin)
