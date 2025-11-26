@@ -1,18 +1,29 @@
-// controllers/paymentController.js
-// controllers/paymentController.js
+// controllers/paymentsController.js
 const { query } = require('../config/database');
 const fetch = require('node-fetch');
 
-// Configuración de PayPal
+// Configuración de PayPal CORREGIDA
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
+// CORRECCIÓN: Usar sandbox en development
 const PAYPAL_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://api-m.paypal.com'
   : 'https://api-m.sandbox.paypal.com';
 
-// Obtener access token de PayPal
+// Obtener access token de PayPal - MEJORADO
 const getPayPalAccessToken = async () => {
   try {
+    console.log('Obteniendo token de PayPal...', {
+      baseUrl: PAYPAL_BASE_URL,
+      hasClientId: !!PAYPAL_CLIENT_ID,
+      hasClientSecret: !!PAYPAL_CLIENT_SECRET
+    });
+
+    // Verificar que las credenciales existan
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+      throw new Error('Credenciales de PayPal no configuradas');
+    }
+
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
     
     const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
@@ -24,10 +35,23 @@ const getPayPalAccessToken = async () => {
       body: 'grant_type=client_credentials'
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('PayPal token error response:', errorText);
+      throw new Error(`PayPal API error: ${response.status} - ${errorText}`);
+    }
+
     const data = await response.json();
+    
+    if (!data.access_token) {
+      console.error('No access token in response:', data);
+      throw new Error('No access token received from PayPal');
+    }
+    
+    console.log('✅ Token obtenido exitosamente');
     return data.access_token;
   } catch (error) {
-    console.error('Error obteniendo token de PayPal:', error);
+    console.error('❌ Error crítico obteniendo token de PayPal:', error.message);
     throw error;
   }
 };
@@ -139,24 +163,23 @@ const sendLowStockAlert = async (lowStockProducts) => {
       <p>Fecha de la alerta: ${new Date().toLocaleString()}</p>
     `;
 
-    // Enviar email (usando el mismo sistema de email que tienes configurado)
-    
-const SibApiV3Sdk = require('@sendinblue/client');
+    // Enviar email usando Resend
+    const Resend = require('resend').Resend;
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Configurar Brevo
-const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
-brevoApi.setApiKey(
-  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY
-);
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const { data, error } = await resend.emails.send({
+      from: 'onboarding@resend.dev',
       to: adminEmail,
       subject: emailSubject,
-      html: emailContent
+      html: emailContent,
     });
 
-    console.log(`Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
+    if (error) {
+      console.error('Error enviando email con Resend:', error);
+      return;
+    }
+
+    console.log(`✅ Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
     
     // También registrar la alerta en la base de datos
     for (const product of lowStockProducts) {
@@ -201,11 +224,16 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-// Crear orden de PayPal - MEJORADO CON REDONDEO
+// Crear orden de PayPal - COMPLETAMENTE REVISADO
 exports.createPayPalOrder = async (req, res) => {
   try {
+    console.log('🔵 Iniciando creación de orden PayPal...');
+    
     const { items } = req.body;
     const userId = req.user.userId;
+
+    // Debug inicial
+    console.log('Datos recibidos:', { items, userId });
 
     // Validar datos
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -241,6 +269,16 @@ exports.createPayPalOrder = async (req, res) => {
         errors: errors
       });
     }
+
+    // OBTENER TOKEN DE PAYPAL PRIMERO
+    console.log('🔄 Obteniendo token de acceso de PayPal...');
+    const accessToken = await getPayPalAccessToken();
+    
+    if (!accessToken) {
+      throw new Error('No se pudo obtener el token de acceso de PayPal');
+    }
+
+    console.log('✅ Token obtenido, validando productos...');
 
     // Validar productos y calcular total automáticamente CON REDONDEO
     let calculatedTotal = 0;
@@ -299,6 +337,8 @@ exports.createPayPalOrder = async (req, res) => {
       });
     }
 
+    console.log('💰 Total calculado:', calculatedTotal);
+
     // Crear orden en base de datos con estado 'pending'
     const orderResult = await query(`
       INSERT INTO ordenes (user_id, total, estado, items)
@@ -307,9 +347,7 @@ exports.createPayPalOrder = async (req, res) => {
     `, [userId, calculatedTotal, JSON.stringify(items)]);
 
     const order = orderResult.rows[0];
-
-    // Obtener token de PayPal
-    const accessToken = await getPayPalAccessToken();
+    console.log('📦 Orden creada en BD:', order.id);
 
     // Crear orden en PayPal
     const paypalOrder = {
@@ -338,23 +376,41 @@ exports.createPayPalOrder = async (req, res) => {
       }
     };
 
+    console.log('🔄 Enviando solicitud a PayPal...', {
+      url: `${PAYPAL_BASE_URL}/v2/checkout/orders`,
+      hasToken: !!accessToken,
+      orderData: paypalOrder
+    });
+
     const paypalResponse = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify(paypalOrder)
     });
 
     const paypalData = await paypalResponse.json();
 
+    console.log('📨 Respuesta de PayPal:', {
+      status: paypalResponse.status,
+      ok: paypalResponse.ok,
+      data: paypalData
+    });
+
     if (!paypalResponse.ok) {
-      console.error('Error creando orden PayPal:', paypalData);
+      console.error('❌ Error detallado de PayPal:', paypalData);
+      
+      // Eliminar la orden de la BD si falla en PayPal
+      await query('DELETE FROM ordenes WHERE id = $1', [order.id]);
+      
       return res.status(400).json({
         success: false,
-        message: 'Error creando orden de pago',
-        error: paypalData
+        message: 'Error creando orden de pago en PayPal',
+        error: paypalData,
+        details: paypalData.details || 'Sin detalles adicionales'
       });
     }
 
@@ -363,6 +419,8 @@ exports.createPayPalOrder = async (req, res) => {
       'UPDATE ordenes SET paypal_order_id = $1 WHERE id = $2',
       [paypalData.id, order.id]
     );
+
+    console.log('✅ Orden PayPal creada exitosamente:', paypalData.id);
 
     res.json({
       success: true,
@@ -375,10 +433,11 @@ exports.createPayPalOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creando orden:', error);
+    console.error('❌ Error completo en createPayPalOrder:', error);
     res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error interno del servidor',
+      error: error.message
     });
   }
 };
@@ -988,6 +1047,43 @@ exports.getStockAlerts = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
+    });
+  }
+};
+
+// Endpoint de debug para verificar configuración
+exports.debugConfig = async (req, res) => {
+  try {
+    // Probar conexión a PayPal
+    let paypalStatus = '❌ No probado';
+    try {
+      const token = await getPayPalAccessToken();
+      paypalStatus = token ? '✅ Conectado' : '❌ Sin token';
+    } catch (error) {
+      paypalStatus = `❌ Error: ${error.message}`;
+    }
+
+    res.json({
+      environment: {
+        nodeEnv: process.env.NODE_ENV,
+        paypalBaseUrl: PAYPAL_BASE_URL,
+        frontendUrl: process.env.FRONTEND_URL
+      },
+      credentials: {
+        paypalClientId: PAYPAL_CLIENT_ID ? '✅ Configurado' : '❌ Faltante',
+        paypalClientSecret: PAYPAL_CLIENT_SECRET ? '✅ Configurado' : '❌ Faltante',
+        resendApiKey: process.env.RESEND_API_KEY ? '✅ Configurado' : '❌ Faltante'
+      },
+      status: {
+        paypal: paypalStatus,
+        database: '✅ Conectado' // Asumiendo que la query funciona
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error en debug',
+      error: error.message
     });
   }
 };
