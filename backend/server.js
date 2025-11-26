@@ -41,16 +41,24 @@ const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:3000',
-    'https://proyect-hasanni.onrender.com',
-    'https://proyect-hasanni-backedn.onrender.com'
+    'https://proyect-hasanni.onrender.com',  // ← TU FRONTEND CORRECTO
+    'https://proyect-hasanni-backedn.onrender.com',   // ← TU BACKEND (por si acaso)
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://192.168.1.100:3000'  // ← Para redes locales
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
-    'ngrok-skip-browser-warning' 
+    'ngrok-skip-browser-warning',
+    'X-Requested-With',
+    'Accept'
   ],
-  credentials: true
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 // Bypass ngrok warning page
