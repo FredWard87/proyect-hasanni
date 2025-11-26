@@ -95,6 +95,25 @@ const COLORS = [
   '#82CA9D', '#FFC658', '#FF6B9D', '#C39BD3', '#76D7C4'
 ];
 
+// Configuración de límites de caracteres
+const LIMITES_CARACTERES = {
+  codigo: 20,
+  nombre: 100,
+  descripcion: 500,
+  categoria: 50,
+  unidad: 20
+};
+
+// Configuración de límites numéricos
+const LIMITES_NUMERICOS = {
+  stock_min: 0,
+  stock_max: 1000000,
+  stock_minimo_min: 0,
+  stock_minimo_max: 100000,
+  precio_min: 0,
+  precio_max: 1000000
+};
+
 const Reportes = () => {
   const [tabActual, setTabActual] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -107,7 +126,7 @@ const Reportes = () => {
   const [reporteTopProductos, setReporteTopProductos] = useState([]);
   const [alertasStock, setAlertasStock] = useState([]);
   const [inventarioCompleto, setInventarioCompleto] = useState([]);
-  
+ 
   // Estados para filtros
   const [filtroStock, setFiltroStock] = useState('todos');
   const [filtroActivo, setFiltroActivo] = useState('todos');
@@ -131,6 +150,7 @@ const Reportes = () => {
     stock_minimo: 0,
     precio: 0
   });
+  const [erroresForm, setErroresForm] = useState({});
 
   // Estados para filtros de reportes
   const [fechaInicio, setFechaInicio] = useState(
@@ -270,6 +290,7 @@ const Reportes = () => {
       stock_minimo: 0,
       precio: 0
     });
+    setErroresForm({});
     setModalProducto(true);
   };
 
@@ -287,24 +308,202 @@ const Reportes = () => {
       stock: producto.stock || 0,
       precio: producto.precio || 0
     });
+    setErroresForm({});
     setModalProducto(true);
+  };
+
+  // Función de validación
+  const validarFormulario = () => {
+    const nuevosErrores = {};
+
+    // Validar longitud de campos de texto
+    if (formProducto.codigo.length > LIMITES_CARACTERES.codigo) {
+      nuevosErrores.codigo = `Máximo ${LIMITES_CARACTERES.codigo} caracteres`;
+    }
+
+    if (formProducto.nombre.length > LIMITES_CARACTERES.nombre) {
+      nuevosErrores.nombre = `Máximo ${LIMITES_CARACTERES.nombre} caracteres`;
+    }
+
+    if (formProducto.descripcion.length > LIMITES_CARACTERES.descripcion) {
+      nuevosErrores.descripcion = `Máximo ${LIMITES_CARACTERES.descripcion} caracteres`;
+    }
+
+    if (formProducto.categoria.length > LIMITES_CARACTERES.categoria) {
+      nuevosErrores.categoria = `Máximo ${LIMITES_CARACTERES.categoria} caracteres`;
+    }
+
+    // Validar campos requeridos
+    if (!formProducto.codigo.trim()) {
+      nuevosErrores.codigo = 'El código es requerido';
+    }
+
+    if (!formProducto.nombre.trim()) {
+      nuevosErrores.nombre = 'El nombre es requerido';
+    }
+
+    if (!formProducto.categoria.trim()) {
+      nuevosErrores.categoria = 'La categoría es requerida';
+    }
+
+    // Validar stock
+    const stock = parseFloat(formProducto.stock);
+    if (isNaN(stock) || stock < LIMITES_NUMERICOS.stock_min) {
+      nuevosErrores.stock = `El stock no puede ser menor a ${LIMITES_NUMERICOS.stock_min}`;
+    } else if (stock > LIMITES_NUMERICOS.stock_max) {
+      nuevosErrores.stock = `El stock no puede ser mayor a ${LIMITES_NUMERICOS.stock_max.toLocaleString()}`;
+    }
+
+    // Validar stock mínimo
+    const stockMinimo = parseFloat(formProducto.stock_minimo);
+    if (isNaN(stockMinimo) || stockMinimo < LIMITES_NUMERICOS.stock_minimo_min) {
+      nuevosErrores.stock_minimo = `El stock mínimo no puede ser menor a ${LIMITES_NUMERICOS.stock_minimo_min}`;
+    } else if (stockMinimo > LIMITES_NUMERICOS.stock_minimo_max) {
+      nuevosErrores.stock_minimo = `El stock mínimo no puede ser mayor a ${LIMITES_NUMERICOS.stock_minimo_max.toLocaleString()}`;
+    }
+
+    // Validar precio
+    const precio = parseFloat(formProducto.precio);
+    if (isNaN(precio) || precio < LIMITES_NUMERICOS.precio_min) {
+      nuevosErrores.precio = `El precio no puede ser menor a ${LIMITES_NUMERICOS.precio_min}`;
+    } else if (precio > LIMITES_NUMERICOS.precio_max) {
+      nuevosErrores.precio = `El precio no puede ser mayor a ${formatearMoneda(LIMITES_NUMERICOS.precio_max)}`;
+    }
+
+    // Validar lógica de negocio: stock mínimo no puede ser mayor que stock
+    if (stockMinimo > stock) {
+      nuevosErrores.stock_minimo = 'El stock mínimo no puede ser mayor que el stock actual';
+    }
+
+    setErroresForm(nuevosErrores);
+    return Object.keys(nuevosErrores).length === 0;
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormProducto(prev => ({
-      ...prev,
-      [name]: value
-    }));
+   
+    // Para campos de texto, aplicar límites de caracteres
+    if (['codigo', 'nombre', 'descripcion', 'categoria', 'unidad'].includes(name)) {
+      const limite = LIMITES_CARACTERES[name];
+      if (value.length <= limite) {
+        setFormProducto(prev => ({
+          ...prev,
+          [name]: value
+        }));
+       
+        // Limpiar error si existe
+        if (erroresForm[name]) {
+          setErroresForm(prev => ({
+            ...prev,
+            [name]: ''
+          }));
+        }
+      } else {
+        // Si excede el límite, mostrar error pero no actualizar el valor
+        setErroresForm(prev => ({
+          ...prev,
+          [name]: `Máximo ${limite} caracteres`
+        }));
+      }
+    } else {
+      // Para campos numéricos
+      let valorNumerico = parseFloat(value);
+     
+      // Validar que sea un número válido
+      if (isNaN(valorNumerico)) {
+        valorNumerico = 0;
+      }
+
+      // Aplicar límites específicos según el campo
+      let valorFinal = valorNumerico;
+      let errorCampo = '';
+
+      switch (name) {
+        case 'stock':
+          if (valorNumerico < LIMITES_NUMERICOS.stock_min) {
+            errorCampo = `Mínimo ${LIMITES_NUMERICOS.stock_min}`;
+            valorFinal = LIMITES_NUMERICOS.stock_min;
+          } else if (valorNumerico > LIMITES_NUMERICOS.stock_max) {
+            errorCampo = `Máximo ${LIMITES_NUMERICOS.stock_max.toLocaleString()}`;
+            valorFinal = LIMITES_NUMERICOS.stock_max;
+          }
+          break;
+       
+        case 'stock_minimo':
+          if (valorNumerico < LIMITES_NUMERICOS.stock_minimo_min) {
+            errorCampo = `Mínimo ${LIMITES_NUMERICOS.stock_minimo_min}`;
+            valorFinal = LIMITES_NUMERICOS.stock_minimo_min;
+          } else if (valorNumerico > LIMITES_NUMERICOS.stock_minimo_max) {
+            errorCampo = `Máximo ${LIMITES_NUMERICOS.stock_minimo_max.toLocaleString()}`;
+            valorFinal = LIMITES_NUMERICOS.stock_minimo_max;
+          }
+          break;
+       
+        case 'precio':
+          if (valorNumerico < LIMITES_NUMERICOS.precio_min) {
+            errorCampo = `Mínimo ${LIMITES_NUMERICOS.precio_min}`;
+            valorFinal = LIMITES_NUMERICOS.precio_min;
+          } else if (valorNumerico > LIMITES_NUMERICOS.precio_max) {
+            errorCampo = `Máximo ${formatearMoneda(LIMITES_NUMERICOS.precio_max)}`;
+            valorFinal = LIMITES_NUMERICOS.precio_max;
+          }
+          break;
+       
+        default:
+          break;
+      }
+
+      setFormProducto(prev => ({
+        ...prev,
+        [name]: valorFinal
+      }));
+
+      // Actualizar errores
+      if (errorCampo) {
+        setErroresForm(prev => ({
+          ...prev,
+          [name]: errorCampo
+        }));
+      } else if (erroresForm[name]) {
+        setErroresForm(prev => ({
+          ...prev,
+          [name]: ''
+        }));
+      }
+
+      // Validación cruzada: stock mínimo vs stock
+      if (name === 'stock' || name === 'stock_minimo') {
+        const stockActual = name === 'stock' ? valorFinal : parseFloat(formProducto.stock);
+        const stockMinimoActual = name === 'stock_minimo' ? valorFinal : parseFloat(formProducto.stock_minimo);
+       
+        if (stockMinimoActual > stockActual) {
+          setErroresForm(prev => ({
+            ...prev,
+            stock_minimo: 'El stock mínimo no puede ser mayor que el stock actual'
+          }));
+        } else if (erroresForm.stock_minimo === 'El stock mínimo no puede ser mayor que el stock actual') {
+          setErroresForm(prev => ({
+            ...prev,
+            stock_minimo: ''
+          }));
+        }
+      }
+    }
   };
 
   const crearProducto = async () => {
+    if (!validarFormulario()) {
+      setError('Por favor corrige los errores en el formulario');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+     
       console.log('➕ Creando producto:', formProducto);
-      
+     
       const response = await axios.post(
         `${API_URL}/inventario/products`,
         formProducto,
@@ -328,12 +527,18 @@ const Reportes = () => {
   };
 
   const editarProducto = async () => {
+    if (!validarFormulario()) {
+      setError('Por favor corrige los errores en el formulario');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+     
       console.log('✏️ Actualizando producto:', productoSeleccionado.id, formProducto);
-      
+     
       const response = await axios.put(
         `${API_URL}/inventario/products/${productoSeleccionado.id}`,
         formProducto,
@@ -361,16 +566,16 @@ const Reportes = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const nuevoEstado = !esActivo(producto.activo);
-      
+     
       console.log(`🔄 Cambiando estado de ${producto.nombre} a:`, nuevoEstado ? 'ACTIVO' : 'INACTIVO');
-      
+     
       if (!nuevoEstado) {
         // Eliminar (desactivar)
         const response = await axios.delete(
           `${API_URL}/inventario/products/${producto.id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        
+       
         if (response.data.success) {
           setSuccess(`Producto "${producto.nombre}" desactivado exitosamente`);
         }
@@ -381,12 +586,12 @@ const Reportes = () => {
           { activo: true },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        
+       
         if (response.data.success) {
           setSuccess(`Producto "${producto.nombre}" activado exitosamente`);
         }
       }
-      
+     
       setTimeout(() => setSuccess(null), 3000);
       await cargarInventarioCompleto();
       await cargarReporteCategorias();
@@ -478,7 +683,7 @@ const Reportes = () => {
   // Filtrar inventario completo según los filtros seleccionados
   const inventarioFiltrado = inventarioCompleto.filter(producto => {
     console.log('Producto:', producto.codigo, 'Activo:', producto.activo, 'Stock:', producto.stock, 'Min:', producto.stock_minimo);
-    
+   
     // Filtro por stock
     let cumpleFiltroStock = true;
     if (filtroStock === 'bajo') {
@@ -503,7 +708,7 @@ const Reportes = () => {
     if (resultado) {
       console.log('✅ Producto pasa filtro:', producto.codigo);
     }
-    
+   
     return resultado;
   });
 
@@ -518,7 +723,7 @@ const Reportes = () => {
   const datosGraficaMovimientos = reporteMovimientos.reduce((acc, mov) => {
     const fecha = formatearFecha(mov.fecha_dia);
     const existing = acc.find(item => item.fecha === fecha);
-    
+   
     if (existing) {
       if (mov.tipo === 'entrada') {
         existing.entradas = parseInt(mov.total_unidades);
@@ -532,7 +737,7 @@ const Reportes = () => {
         salidas: mov.tipo === 'salida' ? parseInt(mov.total_unidades) : 0
       });
     }
-    
+   
     return acc;
   }, []);
 
@@ -853,8 +1058,8 @@ const Reportes = () => {
                           {reporteCategorias.map((cat, idx) => (
                             <TableRow key={idx} hover>
                               <TableCell>
-                                <Chip 
-                                  label={cat.categoria} 
+                                <Chip
+                                  label={cat.categoria}
                                   sx={{ bgcolor: COLORS[idx % COLORS.length], color: 'white' }}
                                 />
                               </TableCell>
@@ -968,8 +1173,8 @@ const Reportes = () => {
                             <TableRow key={idx} hover>
                               <TableCell>{formatearFecha(mov.fecha_dia)}</TableCell>
                               <TableCell>
-                                <Chip 
-                                  label={mov.tipo.toUpperCase()} 
+                                <Chip
+                                  label={mov.tipo.toUpperCase()}
                                   color={mov.tipo === 'entrada' ? 'success' : 'error'}
                                   size="small"
                                 />
@@ -1144,7 +1349,7 @@ const Reportes = () => {
                           {reporteTopProductos.map((prod, idx) => (
                             <TableRow key={idx} hover>
                               <TableCell>
-                                <Avatar sx={{ 
+                                <Avatar sx={{
                                   bgcolor: idx < 3 ? 'warning.main' : 'grey.400',
                                   width: 32,
                                   height: 32,
@@ -1253,7 +1458,7 @@ const Reportes = () => {
                         </FormControl>
                       </Grid>
                     </Grid>
-                    
+                   
                     {/* Resumen de filtros */}
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -1286,10 +1491,10 @@ const Reportes = () => {
                       <TableBody>
                         {inventarioFiltrado.length > 0 ? (
                           inventarioFiltrado.map((producto) => (
-                            <TableRow 
-                              key={producto.id} 
+                            <TableRow
+                              key={producto.id}
                               hover
-                              sx={{ 
+                              sx={{
                                 opacity: esActivo(producto.activo) ? 1 : 0.6,
                                 bgcolor: esActivo(producto.activo) ? 'inherit' : 'grey.50'
                               }}
@@ -1435,7 +1640,7 @@ const Reportes = () => {
                             .slice(0, 5)
                             .map((cat, idx) => (
                               <ListItem key={idx}>
-                                <Avatar sx={{ 
+                                <Avatar sx={{
                                   bgcolor: COLORS[idx % COLORS.length],
                                   mr: 2
                                 }}>
@@ -1593,6 +1798,9 @@ const Reportes = () => {
                   onChange={handleInputChange}
                   required
                   disabled={modoEdicion}
+                  error={!!erroresForm.codigo}
+                  helperText={erroresForm.codigo || `${formProducto.codigo.length}/${LIMITES_CARACTERES.codigo}`}
+                  inputProps={{ maxLength: LIMITES_CARACTERES.codigo }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -1603,6 +1811,9 @@ const Reportes = () => {
                   value={formProducto.categoria}
                   onChange={handleInputChange}
                   required
+                  error={!!erroresForm.categoria}
+                  helperText={erroresForm.categoria || `${formProducto.categoria.length}/${LIMITES_CARACTERES.categoria}`}
+                  inputProps={{ maxLength: LIMITES_CARACTERES.categoria }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -1613,6 +1824,9 @@ const Reportes = () => {
                   value={formProducto.nombre}
                   onChange={handleInputChange}
                   required
+                  error={!!erroresForm.nombre}
+                  helperText={erroresForm.nombre || `${formProducto.nombre.length}/${LIMITES_CARACTERES.nombre}`}
+                  inputProps={{ maxLength: LIMITES_CARACTERES.nombre }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -1624,6 +1838,9 @@ const Reportes = () => {
                   onChange={handleInputChange}
                   multiline
                   rows={2}
+                  error={!!erroresForm.descripcion}
+                  helperText={erroresForm.descripcion || `${formProducto.descripcion.length}/${LIMITES_CARACTERES.descripcion}`}
+                  inputProps={{ maxLength: LIMITES_CARACTERES.descripcion }}
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -1654,7 +1871,13 @@ const Reportes = () => {
                   value={formProducto.stock}
                   onChange={handleInputChange}
                   required
-                  inputProps={{ min: 0 }}
+                  error={!!erroresForm.stock}
+                  helperText={erroresForm.stock || `Mín: ${LIMITES_NUMERICOS.stock_min}, Máx: ${LIMITES_NUMERICOS.stock_max.toLocaleString()}`}
+                  inputProps={{
+                    min: LIMITES_NUMERICOS.stock_min,
+                    max: LIMITES_NUMERICOS.stock_max,
+                    step: 1
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -1666,7 +1889,13 @@ const Reportes = () => {
                   value={formProducto.stock_minimo}
                   onChange={handleInputChange}
                   required
-                  inputProps={{ min: 0 }}
+                  error={!!erroresForm.stock_minimo}
+                  helperText={erroresForm.stock_minimo || `Mín: ${LIMITES_NUMERICOS.stock_minimo_min}, Máx: ${LIMITES_NUMERICOS.stock_minimo_max.toLocaleString()}`}
+                  inputProps={{
+                    min: LIMITES_NUMERICOS.stock_minimo_min,
+                    max: LIMITES_NUMERICOS.stock_minimo_max,
+                    step: 1
+                  }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -1678,7 +1907,13 @@ const Reportes = () => {
                   value={formProducto.precio}
                   onChange={handleInputChange}
                   required
-                  inputProps={{ min: 0, step: 0.01 }}
+                  error={!!erroresForm.precio}
+                  helperText={erroresForm.precio || `Mín: ${formatearMoneda(LIMITES_NUMERICOS.precio_min)}, Máx: ${formatearMoneda(LIMITES_NUMERICOS.precio_max)}`}
+                  inputProps={{
+                    min: LIMITES_NUMERICOS.precio_min,
+                    max: LIMITES_NUMERICOS.precio_max,
+                    step: 0.01
+                  }}
                   InputProps={{
                     startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>
                   }}
