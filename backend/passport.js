@@ -6,6 +6,7 @@ passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: '/api/auth/google/callback' // ← Mantén esto si tu ruta en Express es /api/auth/...
+  callbackURL: '/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     let usuario = await Usuario.obtenerPorEmail(profile.emails[0].value);
