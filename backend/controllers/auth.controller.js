@@ -568,7 +568,7 @@ function checkActiveSession(userId) {
   }
 }
 
-function addActiveSession(userId, token, expiresIn = '1h') {
+function addActiveSession(userId, token, expiresIn = '3m') {
   const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hora por defecto
   const session = {
     userId,
