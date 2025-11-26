@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // Importar useNavigate
 
 const ShoppingCart = () => {
   const [products, setProducts] = useState([]);
@@ -7,6 +8,8 @@ const ShoppingCart = () => {
   const [loading, setLoading] = useState(false);
   const [currentView, setCurrentView] = useState('products'); // products, cart, orders
   const [user, setUser] = useState(null);
+  
+  const navigate = useNavigate(); // Inicializar navigate
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -210,9 +213,29 @@ const ShoppingCart = () => {
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
-      {/* Header */}
+      {/* Header - ACTUALIZADO CON BOTÓN REGRESAR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1>🛒 Tienda Online</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+            title="Regresar atrás"
+          >
+            ← Regresar
+          </button>
+          <h1>🛒 Tienda Online</h1>
+        </div>
         {user && (
           <div style={{ fontSize: '14px', color: '#666' }}>
             Bienvenido, {user.nombre}
