@@ -1,6 +1,14 @@
 // controllers/paymentsController.js
 const { query } = require('../config/database');
 const fetch = require('node-fetch');
+const SibApiV3Sdk = require('@sendinblue/client');
+
+// Configurar Brevo (igual que en authController)
+const brevoApi = new SibApiV3Sdk.TransactionalEmailsApi();
+brevoApi.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 // Configuración de PayPal CORREGIDA
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
@@ -104,7 +112,7 @@ const checkAndSendLowStockAlerts = async (items) => {
   }
 };
 
-// Función para enviar alerta de stock bajo por email
+// Función para enviar alerta de stock bajo por email CON BREVO
 const sendLowStockAlert = async (lowStockProducts) => {
   try {
     // Obtener email del administrador
@@ -163,23 +171,25 @@ const sendLowStockAlert = async (lowStockProducts) => {
       <p>Fecha de la alerta: ${new Date().toLocaleString()}</p>
     `;
 
-    // Enviar email usando Resend
-    const Resend = require('resend').Resend;
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // Enviar email usando Brevo (igual que en authController)
+    try {
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = emailSubject;
+      sendSmtpEmail.htmlContent = emailContent;
+      sendSmtpEmail.sender = { 
+        name: "Sistema de Alertas", 
+        email: "r41474721@gmail.com"
+      };
+      sendSmtpEmail.to = [{ email: adminEmail }];
 
-    const { data, error } = await resend.emails.send({
-      from: 'onboarding@resend.dev',
-      to: adminEmail,
-      subject: emailSubject,
-      html: emailContent,
-    });
-
-    if (error) {
-      console.error('Error enviando email con Resend:', error);
-      return;
+      const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+      console.log(`✅ Alerta de stock enviada a: ${adminEmail} - ID: ${result.messageId}`);
+    } catch (emailError) {
+      console.error('❌ Error enviando alerta con Brevo:', emailError);
+      // No lanzar error para no interrumpir el proceso
     }
 
-    console.log(`✅ Alerta de stock bajo enviada a ${adminEmail} para ${lowStockProducts.length} productos`);
+    console.log(`✅ Alerta de stock baja procesada para ${lowStockProducts.length} productos`);
     
     // También registrar la alerta en la base de datos
     for (const product of lowStockProducts) {
@@ -1072,7 +1082,7 @@ exports.debugConfig = async (req, res) => {
       credentials: {
         paypalClientId: PAYPAL_CLIENT_ID ? '✅ Configurado' : '❌ Faltante',
         paypalClientSecret: PAYPAL_CLIENT_SECRET ? '✅ Configurado' : '❌ Faltante',
-        resendApiKey: process.env.RESEND_API_KEY ? '✅ Configurado' : '❌ Faltante'
+        brevoApiKey: process.env.BREVO_API_KEY ? '✅ Configurado' : '❌ Faltante'
       },
       status: {
         paypal: paypalStatus,
@@ -1087,3 +1097,5 @@ exports.debugConfig = async (req, res) => {
     });
   }
 };
+
+module.exports = exports;
