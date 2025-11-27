@@ -198,61 +198,93 @@ class UsuarioController {
   }
 
   // DELETE /api/usuarios/:id - Eliminar usuario
-  static async eliminarUsuario(req, res) {
-    try {
-      const { id } = req.params;
-      
-      if (!id || isNaN(parseInt(id))) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID de usuario inválido'
-        });
-      }
-      
-      const usuario = await Usuario.obtenerPorId(parseInt(id));
-      
-      if (!usuario) {
-        return res.status(404).json({
-          success: false,
-          message: 'Usuario no encontrado'
-        });
-      }
-      
-      // Guardar información para la notificación
-      const usuarioEliminado = {
-        id: usuario.id,
-        nombre: usuario.nombre,
-        email: usuario.email
-      };
-      
-      await usuario.eliminar();
+static async eliminarUsuario(req, res) {
+  try {
+    const { id } = req.params;
+    
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de usuario inválido'
+      });
+    }
+    
+    const usuarioId = parseInt(id);
+    
+    // Verificar si el usuario existe
+    const usuario = await Usuario.obtenerPorId(usuarioId);
+    
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
 
-      // Notificar a administradores sobre eliminación
+    // Verificar si el usuario que elimina es el mismo que se va a eliminar
+    if (req.user && req.user.userId === usuarioId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No puedes eliminar tu propia cuenta'
+      });
+    }
+
+    // Guardar información para la notificación
+    const usuarioEliminado = {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      email: usuario.email
+    };
+
+    // Usar el nuevo método eliminarCompleto que maneja dependencias
+    const eliminado = await Usuario.eliminarCompleto(usuarioId);
+    
+    if (!eliminado) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al eliminar usuario'
+      });
+    }
+
+    // Notificar a administradores sobre eliminación
+    if (req.user && req.user.userId) {
       await notificationMiddleware.onUserDataModified(
         req.user.userId,
-        usuario.id,
+        usuarioId,
         { 
           tipo: 'usuario_eliminado',
           usuario: usuarioEliminado,
           eliminado_por: req.user.nombre || 'Sistema'
         }
       );
-      
-      res.json({
-        success: true,
-        message: 'Usuario eliminado exitosamente',
-        data: { id: parseInt(id) }
-      });
-      
-    } catch (error) {
-      console.error('Error al eliminar usuario:', error);
-      res.status(500).json({
+    }
+    
+    res.json({
+      success: true,
+      message: 'Usuario eliminado exitosamente',
+      data: { id: usuarioId }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error al eliminar usuario:', error);
+    
+    // Manejar error de clave foránea específicamente
+    if (error.code === '23503') {
+      return res.status(400).json({
         success: false,
-        message: 'Error al eliminar usuario',
-        error: error.message
+        message: 'No se puede eliminar el usuario porque tiene datos relacionados',
+        error: 'El usuario tiene notificaciones u otros datos asociados que deben eliminarse primero',
+        code: 'FOREIGN_KEY_VIOLATION'
       });
     }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar usuario',
+      error: error.message
+    });
   }
+}
 
   // GET /api/usuarios/roles - Obtener roles válidos
   static obtenerRoles(req, res) {
