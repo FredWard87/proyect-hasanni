@@ -68,7 +68,7 @@ class Usuario {
     };
   }
 
- static async eliminarCompleto(id) {
+static async eliminarCompleto(id) {
   try {
     const query = require('../config/database').query;
     
@@ -89,19 +89,26 @@ class Usuario {
     await query('BEGIN');
     
     try {
-      // Tablas que sabemos que existen y pueden tener FK a usuarios
-      const tablasConReferencias = [
+      // ESTRATEGIA ADAPTATIVA: Intentar diferentes combinaciones de tabla/columna
+      const estrategias = [
+        // Estrategia 1: notificaciones (local)
         { tabla: 'notificaciones', columna: 'usuario_id' },
+        // Estrategia 2: notifications (posible en render)
+        { tabla: 'notifications', columna: 'usuario_id' },
+        { tabla: 'notifications', columna: 'user_id' },
+        // Estrategia 3: Otras tablas comunes
+        { tabla: 'password_reset_tokens', columna: 'user_id' },
         { tabla: 'ordenes', columna: 'usuario_id' },
+        { tabla: 'orders', columna: 'user_id' },
         { tabla: 'transacciones', columna: 'usuario_id' },
-        { tabla: 'movimientos_inventario', columna: 'usuario_id' },
-        { tabla: 'alertas_stock', columna: 'usuario_id' },
-        { tabla: 'password_reset_tokens', columna: 'user_id' }
+        { tabla: 'transactions', columna: 'user_id' },
+        { tabla: 'sesiones', columna: 'usuario_id' },
+        { tabla: 'sessions', columna: 'user_id' }
       ];
       
       let totalEliminado = 0;
       
-      for (const { tabla, columna } of tablasConReferencias) {
+      for (const { tabla, columna } of estrategias) {
         try {
           const result = await query(
             `DELETE FROM ${tabla} WHERE ${columna} = $1`,
@@ -109,36 +116,112 @@ class Usuario {
           );
           
           if (result.rowCount > 0) {
-            console.log(`🗑️ ${tabla}: ${result.rowCount} registros eliminados`);
+            console.log(`🗑️ ${tabla}.${columna}: ${result.rowCount} registros eliminados`);
             totalEliminado += result.rowCount;
           }
         } catch (e) {
-          // Si la tabla no existe o no tiene la columna, continuar
-          console.log(`ℹ️ No se pudo eliminar de ${tabla}: ${e.message}`);
+          // Ignorar errores de "tabla no existe" o "columna no existe"
+          if (!e.message.includes('does not exist') && !e.message.includes('no existe')) {
+            console.log(`⚠️ Error eliminando de ${tabla}.${columna}: ${e.message}`);
+          }
         }
       }
       
       console.log(`📊 Total de registros dependientes eliminados: ${totalEliminado}`);
       
-      // Eliminar el usuario
+      // INTENTAR ELIMINAR EL USUARIO
       const usuarioResult = await query(
         'DELETE FROM usuarios WHERE id = $1 RETURNING id, nombre, email',
         [id]
       );
       
+      if (usuarioResult.rowCount === 0) {
+        throw new Error('No se pudo eliminar el usuario después de limpiar dependencias');
+      }
+      
       await query('COMMIT');
       
       console.log(`✅ Eliminación completada para: ${usuario.nombre}`);
-      return usuarioResult.rowCount > 0;
+      return true;
       
     } catch (error) {
       await query('ROLLBACK');
+      
+      // Si es error de FK, intentar estrategia alternativa
+      if (error.code === '23503') {
+        console.log('🔧 Error de FK detectado, aplicando estrategia alternativa...');
+        return await this.eliminarCompletoEstrategiaB(id);
+      }
+      
       console.error('❌ Error en transacción:', error);
       throw error;
     }
     
   } catch (err) {
     console.error('❌ Error en eliminación completa:', err);
+    throw err;
+  }
+}
+
+// ESTRATEGIA ALTERNATIVA para cuando falla la primera
+static async eliminarCompletoEstrategiaB(id) {
+  try {
+    const query = require('../config/database').query;
+    
+    console.log(`🔧 Aplicando estrategia alternativa para usuario ID: ${id}`);
+    
+    await query('BEGIN');
+    
+    try {
+      // PRIMERO: Diagnosticar qué tablas tienen FK a usuarios
+      const fkInfo = await query(`
+        SELECT
+          tc.table_name as tabla_origen,
+          kcu.column_name as columna_origen
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+          ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage AS ccu
+          ON ccu.constraint_name = tc.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY' 
+          AND ccu.table_name = 'usuarios'
+          AND ccu.column_name = 'id'
+      `);
+      
+      console.log('🔍 Tablas con FK a usuarios:', fkInfo.rows);
+      
+      // Eliminar de las tablas que realmente tienen FK
+      for (const { tabla_origen, columna_origen } of fkInfo.rows) {
+        try {
+          const result = await query(
+            `DELETE FROM ${tabla_origen} WHERE ${columna_origen} = $1`,
+            [id]
+          );
+          console.log(`🗑️ ${tabla_origen}.${columna_origen}: ${result.rowCount} registros`);
+        } catch (e) {
+          console.log(`⚠️ Error eliminando de ${tabla_origen}: ${e.message}`);
+        }
+      }
+      
+      // Eliminar usuario
+      const usuarioResult = await query(
+        'DELETE FROM usuarios WHERE id = $1 RETURNING id',
+        [id]
+      );
+      
+      await query('COMMIT');
+      
+      console.log(`✅ Estrategia alternativa exitosa para usuario ID: ${id}`);
+      return usuarioResult.rowCount > 0;
+      
+    } catch (error) {
+      await query('ROLLBACK');
+      console.error('❌ Error en estrategia alternativa:', error);
+      throw error;
+    }
+    
+  } catch (err) {
+    console.error('❌ Error en estrategia alternativa:', err);
     throw err;
   }
 }
