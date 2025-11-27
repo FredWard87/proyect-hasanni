@@ -68,6 +68,78 @@ class Usuario {
     };
   }
 
+  static async eliminarCompleto(id) {
+  try {
+    const query = require('../config/database').query;
+    
+    // Iniciar transacción para asegurar consistencia
+    await query('BEGIN');
+    
+    try {
+      console.log(`🧹 Eliminando dependencias del usuario ID: ${id}`);
+      
+      // 1. PRIMERO: Eliminar todas las notificaciones del usuario
+      const notificacionesResult = await query(
+        'DELETE FROM notificaciones WHERE usuario_id = $1 RETURNING id',
+        [id]
+      );
+      console.log(`📧 Notificaciones eliminadas: ${notificacionesResult.rowCount}`);
+      
+      // 2. Eliminar ubicaciones del usuario (si existe esta tabla)
+      try {
+        const ubicacionesResult = await query(
+          'DELETE FROM ubicaciones WHERE usuario_id = $1 RETURNING id',
+          [id]
+        );
+        console.log(`📍 Ubicaciones eliminadas: ${ubicacionesResult.rowCount}`);
+      } catch (e) {
+        console.log('ℹ️ Tabla ubicaciones no existe o no tiene datos');
+      }
+      
+      // 3. Eliminar preferencias del usuario (si existe esta tabla)
+      try {
+        const preferenciasResult = await query(
+          'DELETE FROM preferencias WHERE usuario_id = $1 RETURNING id',
+          [id]
+        );
+        console.log(`⚙️ Preferencias eliminadas: ${preferenciasResult.rowCount}`);
+      } catch (e) {
+        console.log('ℹ️ Tabla preferencias no existe o no tiene datos');
+      }
+      
+      // 4. Eliminar sesiones del usuario (si existe esta tabla)
+      try {
+        const sesionesResult = await query(
+          'DELETE FROM sesiones WHERE usuario_id = $1 RETURNING id',
+          [id]
+        );
+        console.log(`🔐 Sesiones eliminadas: ${sesionesResult.rowCount}`);
+      } catch (e) {
+        console.log('ℹ️ Tabla sesiones no existe o no tiene datos');
+      }
+      
+      // 5. FINALMENTE: Eliminar el usuario
+      const usuarioResult = await query(
+        'DELETE FROM usuarios WHERE id = $1 RETURNING id',
+        [id]
+      );
+      
+      await query('COMMIT');
+      
+      console.log(`✅ Usuario eliminado: ${usuarioResult.rowCount > 0 ? 'SÍ' : 'NO'}`);
+      return usuarioResult.rowCount > 0;
+      
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+    
+  } catch (err) {
+    console.error('❌ Error en eliminación completa:', err);
+    throw err;
+  }
+}
+
   // ✅ MÉTODO PARA GENERAR Y GUARDAR TOKEN
   static async generarYGuardarToken(userId) {
     const token = generarTokenSeguro(32);
