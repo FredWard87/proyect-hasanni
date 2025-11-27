@@ -72,99 +72,68 @@ class Usuario {
   try {
     const query = require('../config/database').query;
     
-    // Iniciar transacción para asegurar consistencia
+    // Verificar que el usuario existe
+    const usuarioExistente = await query(
+      'SELECT id, nombre, email FROM usuarios WHERE id = $1',
+      [id]
+    );
+    
+    if (usuarioExistente.rowCount === 0) {
+      console.log('❌ Usuario no encontrado');
+      return false;
+    }
+
+    const usuario = usuarioExistente.rows[0];
+    console.log(`🧹 Iniciando eliminación de: ${usuario.nombre} (ID: ${id})`);
+    
     await query('BEGIN');
     
     try {
-      console.log(`🧹 Eliminando dependaciones del usuario ID: ${id}`);
+      // Tablas que sabemos que existen y pueden tener FK a usuarios
+      const tablasConReferencias = [
+        { tabla: 'notificaciones', columna: 'usuario_id' },
+        { tabla: 'ordenes', columna: 'usuario_id' },
+        { tabla: 'transacciones', columna: 'usuario_id' },
+        { tabla: 'movimientos_inventario', columna: 'usuario_id' },
+        { tabla: 'alertas_stock', columna: 'usuario_id' },
+        { tabla: 'password_reset_tokens', columna: 'user_id' }
+      ];
       
-      // 1. ELIMINAR NOTIFICACIONES - tu tabla se llama "notifications"
-      try {
-        const notificacionesResult = await query(
-          'DELETE FROM notifications WHERE usuario_id = $1 OR user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`📧 Notificaciones eliminadas: ${notificacionesResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Error eliminando notificaciones:', e.message);
+      let totalEliminado = 0;
+      
+      for (const { tabla, columna } of tablasConReferencias) {
+        try {
+          const result = await query(
+            `DELETE FROM ${tabla} WHERE ${columna} = $1`,
+            [id]
+          );
+          
+          if (result.rowCount > 0) {
+            console.log(`🗑️ ${tabla}: ${result.rowCount} registros eliminados`);
+            totalEliminado += result.rowCount;
+          }
+        } catch (e) {
+          // Si la tabla no existe o no tiene la columna, continuar
+          console.log(`ℹ️ No se pudo eliminar de ${tabla}: ${e.message}`);
+        }
       }
       
-      // 2. ELIMINAR ÓRDENES relacionadas con el usuario
-      try {
-        const ordenesResult = await query(
-          'DELETE FROM ordenes WHERE usuario_id = $1 OR user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`📋 Órdenes eliminadas: ${ordenesResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Error eliminando órdenes:', e.message);
-      }
+      console.log(`📊 Total de registros dependientes eliminados: ${totalEliminado}`);
       
-      // 3. ELIMINAR TRANSACCIONES relacionadas con el usuario
-      try {
-        const transaccionesResult = await query(
-          'DELETE FROM transacciones WHERE usuario_id = $1 OR user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`💳 Transacciones eliminadas: ${transaccionesResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Error eliminando transacciones:', e.message);
-      }
-      
-      // 4. ELIMINAR MOVIMIENTOS DE INVENTARIO relacionados con el usuario
-      try {
-        const movimientosResult = await query(
-          'DELETE FROM movimientos_inventario WHERE usuario_id = $1 OR user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`📦 Movimientos eliminados: ${movimientosResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Error eliminando movimientos:', e.message);
-      }
-      
-      // 5. ELIMINAR ALERTAS DE STOCK relacionadas con el usuario
-      try {
-        const alertasResult = await query(
-          'DELETE FROM alertas_stock WHERE usuario_id = $1 OR user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`⚠️ Alertas eliminadas: ${alertasResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Error eliminando alertas:', e.message);
-      }
-      
-      // 6. ELIMINAR TOKENS DE RESTABLECIMIENTO
-      try {
-        const tokensResult = await query(
-          'DELETE FROM password_reset_tokens WHERE user_id = $1 RETURNING id',
-          [id]
-        );
-        console.log(`🔑 Tokens eliminados: ${tokensResult.rowCount}`);
-      } catch (e) {
-        console.log('ℹ️ Tabla password_reset_tokens no existe o no tiene datos');
-      }
-      
-      // 7. FINALMENTE: Eliminar el usuario de la tabla usuarios
+      // Eliminar el usuario
       const usuarioResult = await query(
         'DELETE FROM usuarios WHERE id = $1 RETURNING id, nombre, email',
         [id]
       );
       
-      if (usuarioResult.rowCount === 0) {
-        await query('ROLLBACK');
-        console.log('❌ Usuario no encontrado para eliminar');
-        return false;
-      }
-      
       await query('COMMIT');
       
-      const usuarioEliminado = usuarioResult.rows[0];
-      console.log(`✅ Usuario eliminado completamente: ${usuarioEliminado.nombre} (${usuarioEliminado.email})`);
-      return true;
+      console.log(`✅ Eliminación completada para: ${usuario.nombre}`);
+      return usuarioResult.rowCount > 0;
       
     } catch (error) {
       await query('ROLLBACK');
-      console.error('❌ Error en transacción de eliminación:', error);
+      console.error('❌ Error en transacción:', error);
       throw error;
     }
     
